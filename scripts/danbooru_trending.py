@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Fetch Danbooru daily trending popular posts via JSON API."""
+"""Fetch Danbooru daily trending popular posts via JSON API.
+Danbooru allows automated access with a descriptive User-Agent (see https://danbooru.donmai.us/wiki_pages/help:api).
+Cloudflare blocks bare python-requests UA, so we use an informative project UA instead."""
 import json, sys, requests
 from datetime import datetime, timezone
 
-UA = requests.utils.default_user_agent()
+UA = "DanbooruTrending/1.0 (https://github.com/aquaplatinumberlitz/ai-art-tools)"
 BASE = "https://danbooru.donmai.us"
 
 def fetch_popular(scale='day', count=5, date=None):
