@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Fetch Danbooru daily trending popular posts via API (iOS app UA bypasses Cloudflare)."""
+"""Fetch Danbooru daily trending popular posts via JSON API."""
 import json, sys, requests
 from datetime import datetime, timezone
 
-UA = "Danbooru/1.0 (iPhone; iOS 17.0; Scale/3.00)"
+UA = requests.utils.default_user_agent()
 BASE = "https://danbooru.donmai.us"
 
 def fetch_popular(scale='day', count=5, date=None):

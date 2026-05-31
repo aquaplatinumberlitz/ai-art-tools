@@ -19,6 +19,9 @@ API_HEADERS = {
     'Origin': 'https://pixai.art',
 }
 
+def log(msg):
+    print(f"PixAI BA: {msg}", file=sys.stderr)
+
 def load_state():
     if not os.path.exists(STATE_FILE):
         return None
@@ -43,7 +46,7 @@ def get_token_from_state(state):
                 return item.get('value', '')
     return ''
 
-def fetch_ba_via_api(token='', cookies=None, limit=5):
+def fetch_ba_via_api(token='', cookies=None, limit=5, retry_on_401=True):
     """Try fetching Blue Archive artworks via GraphQL with available auth."""
     headers = {
         'User-Agent': 'Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36',
@@ -62,18 +65,40 @@ def fetch_ba_via_api(token='', cookies=None, limit=5):
             'query': query,
             'variables': {'first': limit, 'tackId': BA_TACK_ID}
         }, timeout=15)
+        if r.status_code == 401:
+            log("GraphQL API returned HTTP 401")
+            if retry_on_401:
+                log("retrying once after Playwright re-login")
+                if os.path.exists(STATE_FILE):
+                    os.remove(STATE_FILE)
+                refreshed = login_and_save()
+                if refreshed:
+                    return fetch_ba_via_api(
+                        token=refreshed.get('token', ''),
+                        cookies=refreshed.get('cookies', {}),
+                        limit=limit,
+                        retry_on_401=False,
+                    )
+            return None
         if r.status_code == 200:
             data = r.json()
             if 'errors' not in data:
                 edges = data.get('data', {}).get('artworks', {}).get('edges', [])
                 if edges:
                     return [e['node'] for e in edges[:limit]]
+            else:
+                log(f"GraphQL returned errors: {data.get('errors')}")
+        else:
+            log(f"GraphQL API returned HTTP {r.status_code}")
     except Exception as e:
-        print(f"⚠️ Error: {e}", file=sys.stderr)
+        log(f"GraphQL API failed: {e}")
     return None
 
 def login_and_save():
     """Full Playwright login, save storage_state."""
+    if not EMAIL or not PASS:
+        log("missing PIXAI_EMAIL or PIXAI_PASSWORD")
+        return None
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx = browser.new_context(
@@ -81,23 +106,23 @@ def login_and_save():
             viewport={'width': 1366, 'height': 768}
         )
         page = ctx.new_page()
-        page.goto('https://pixai.art/en/login', wait_until='domcontentloaded', timeout=30000)
-        page.wait_for_timeout(8000)
-        
-        btn = page.query_selector('button:has-text("Continue with Email")')
-        if btn: btn.click()
-        page.wait_for_timeout(3000)
-        
-        page.fill('input[type="email"]', EMAIL)
-        page.fill('input[type="password"]', PASS)
-        page.wait_for_timeout(500)
-        page.press('input[type="password"]', 'Enter')
-        page.wait_for_timeout(8000)
-        
         try:
+            page.goto('https://pixai.art/en/login', wait_until='domcontentloaded', timeout=30000)
+            page.wait_for_selector('input[type="email"], button:has-text("Continue with Email")', timeout=15000)
+            
+            btn = page.query_selector('button:has-text("Continue with Email")')
+            if btn:
+                btn.click()
+                page.wait_for_selector('input[type="email"]', timeout=15000)
+            
+            page.fill('input[type="email"]', EMAIL)
+            page.fill('input[type="password"]', PASS)
+            page.press('input[type="password"]', 'Enter')
             page.wait_for_url(lambda u: '/en' in u and '/login' not in u, timeout=15000)
         except Exception as e:
-            print(f"⚠️ Error: {e}", file=sys.stderr)
+            log(f"Playwright login failed before session token was available: {e}")
+            browser.close()
+            return None
         
         token = page.evaluate('localStorage.getItem("https://api.pixai.art:token")')
         if token:
@@ -109,6 +134,7 @@ def login_and_save():
             bid = page.evaluate('localStorage.getItem("browser-id")') or ''
             browser.close()
             return {'token': token, 'browser_id': bid, 'cookies': get_cookies(state)}
+        log("Playwright login completed without PixAI API token")
         browser.close()
     return None
 
@@ -122,13 +148,13 @@ def get_auth():
         
         # 1) Try token
         if token:
-            data = fetch_ba_via_api(token=token)
+            data = fetch_ba_via_api(token=token, retry_on_401=False)
             if data:
                 return {'token': token, 'browser_id': '', 'cookies': cookies}
         
         # 2) Try cookies
         if cookies:
-            data = fetch_ba_via_api(cookies=cookies)
+            data = fetch_ba_via_api(cookies=cookies, retry_on_401=False)
             if data:
                 return {'token': '', 'browser_id': '', 'cookies': cookies}
     

@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Fetch SeaArt trending posts by scraping the rendered DOM with Playwright."""
-import json, sys, re, time
+import json, sys, re
 from playwright.sync_api import sync_playwright
+
+
+def log(msg):
+    print(f"SeaArt: {msg}", file=sys.stderr)
 
 
 def cover_to_file_url(cover_url):
@@ -26,69 +30,88 @@ def fetch_trending(count=15):
                 viewport={'width': 1440, 'height': 900}
             )
             page = context.new_page()
-            page.goto('https://seaart.ai/post', wait_until='networkidle', timeout=30000)
-            page.wait_for_timeout(5000)
+            results = []
+            for attempt in range(3):
+                if attempt == 0:
+                    log("loading trending page")
+                    page.goto('https://seaart.ai/post', wait_until='domcontentloaded', timeout=30000)
+                else:
+                    log(f"no results, retrying page load ({attempt}/2)")
+                    page.reload(wait_until='domcontentloaded', timeout=30000)
 
-            # Scrape post data from the rendered DOM
-            results = page.evaluate('''(count) => {
-                const posts = [];
-                // Find all post card links
-                const links = document.querySelectorAll('a[href*="postDetail"]');
-                
-                for (const link of links) {
-                    if (posts.length >= count) break;
-                    
-                    const href = link.getAttribute('href') || '';
-                    const m = href.match(/\\/postDetail\\/([^?]+)/);
-                    if (!m) continue;
-                    const id = m[1];
-                    
-                    // Find the img element inside the card
-                    const img = link.querySelector('img');
-                    const imgSrc = img ? (img.getAttribute('src') || img.getAttribute('data-src') || '') : '';
-                    
-                    // Title: look for title element
-                    let title = '';
-                    const titleEl = link.querySelector('[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]');
-                    if (titleEl) title = titleEl.textContent.trim();
-                    
-                    // Also try meta tags or figcaptions
-                    if (!title) {
-                        const allText = link.querySelectorAll('span, p, div');
-                        for (const el of allText) {
-                            const t = el.textContent.trim();
-                            if (t.length > 3 && t.length < 100) {
-                                title = t;
-                                break;
+                try:
+                    page.wait_for_selector('a[href*="postDetail"]', timeout=15000)
+                except Exception as e:
+                    log(f"post cards did not appear: {e}")
+
+                # Scrape post data from the rendered DOM
+                try:
+                    results = page.evaluate('''(count) => {
+                        const posts = [];
+                        // Find all post card links
+                        const links = document.querySelectorAll('a[href*="postDetail"]');
+                        
+                        for (const link of links) {
+                            if (posts.length >= count) break;
+                            
+                            const href = link.getAttribute('href') || '';
+                            const m = href.match(/\\/postDetail\\/([^?]+)/);
+                            if (!m) continue;
+                            const id = m[1];
+                            
+                            // Find the img element inside the card
+                            const img = link.querySelector('img');
+                            const imgSrc = img ? (img.getAttribute('src') || img.getAttribute('data-src') || '') : '';
+                            
+                            // Title: look for title element
+                            let title = '';
+                            const titleEl = link.querySelector('[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]');
+                            if (titleEl) title = titleEl.textContent.trim();
+                            
+                            // Also try meta tags or figcaptions
+                            if (!title) {
+                                const allText = link.querySelectorAll('span, p, div');
+                                for (const el of allText) {
+                                    const t = el.textContent.trim();
+                                    if (t.length > 3 && t.length < 100) {
+                                        title = t;
+                                        break;
+                                    }
+                                }
                             }
+                            
+                            // Author
+                            let author = '';
+                            const authorEl = link.querySelector('[class*="author"], [class*="Author"], [class*="user"], [class*="User"]');
+                            if (authorEl) author = authorEl.textContent.trim();
+                            
+                            posts.push({
+                                'id': id,
+                                'title': title,
+                                'author': author,
+                                'author_avatar': '',
+                                'image_url': imgSrc,
+                                'image_width': img ? (parseInt(img.getAttribute('width') || '0') || 0) : 0,
+                                'image_height': img ? (parseInt(img.getAttribute('height') || '0') || 0) : 0,
+                                'likes': 0,
+                                'views': 0,
+                                'collections': 0,
+                                'tags': [],
+                                'sub_channel': '',
+                                'created_at': 0,
+                                'nsfw_level': 0,
+                                'url': 'https://seaart.ai/postDetail/' + id,
+                            });
                         }
-                    }
-                    
-                    // Author
-                    let author = '';
-                    const authorEl = link.querySelector('[class*="author"], [class*="Author"], [class*="user"], [class*="User"]');
-                    if (authorEl) author = authorEl.textContent.trim();
-                    
-                    posts.push({
-                        'id': id,
-                        'title': title,
-                        'author': author,
-                        'author_avatar': '',
-                        'image_url': imgSrc,
-                        'image_width': img ? (parseInt(img.getAttribute('width') || '0') || 0) : 0,
-                        'image_height': img ? (parseInt(img.getAttribute('height') || '0') || 0) : 0,
-                        'likes': 0,
-                        'views': 0,
-                        'collections': 0,
-                        'tags': [],
-                        'sub_channel': '',
-                        'created_at': 0,
-                        'nsfw_level': 0,
-                        'url': 'https://seaart.ai/postDetail/' + id,
-                    });
-                }
-                return posts;
-            }''', count)
+                        return posts;
+                    }''', count)
+                except Exception as e:
+                    log(f"DOM evaluation failed: {e}")
+                    results = []
+
+                if results:
+                    log(f"found {len(results)} posts")
+                    break
 
             # Clean up: convert image URLs to full-res
             for r in results:

@@ -18,6 +18,9 @@ API_HEADERS = {
     'Origin': 'https://pixai.art',
 }
 
+def log(msg):
+    print(f"PixAI: {msg}", file=sys.stderr)
+
 def load_state():
     """Load saved Playwright storage_state."""
     if not os.path.exists(STATE_FILE):
@@ -54,16 +57,24 @@ def try_api(token='', cookies=None):
     try:
         r = requests.get('https://api.pixai.art/v2/artwork/recommend?first=5',
                         headers=headers, cookies=cookies or {}, timeout=10)
+        if r.status_code == 401:
+            log("saved auth rejected with HTTP 401")
+            return None
         if r.status_code == 200:
             data = r.json().get('data', [])
             if data and data[0].get('title'):
                 return data
+        else:
+            log(f"auth probe returned HTTP {r.status_code}")
     except Exception as e:
-        print(f"⚠️ Error: {e}", file=sys.stderr)
+        log(f"auth probe failed: {e}")
     return None
 
 def login_and_save():
     """Full Playwright login, save storage_state for future reuse."""
+    if not EMAIL or not PASS:
+        log("missing PIXAI_EMAIL or PIXAI_PASSWORD")
+        return None
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx = browser.new_context(
@@ -71,23 +82,23 @@ def login_and_save():
             viewport={'width': 1366, 'height': 768}
         )
         page = ctx.new_page()
-        page.goto('https://pixai.art/en/login', wait_until='domcontentloaded', timeout=30000)
-        page.wait_for_timeout(8000)
-        
-        btn = page.query_selector('button:has-text("Continue with Email")')
-        if btn: btn.click()
-        page.wait_for_timeout(3000)
-        
-        page.fill('input[type="email"]', EMAIL)
-        page.fill('input[type="password"]', PASS)
-        page.wait_for_timeout(500)
-        page.press('input[type="password"]', 'Enter')
-        page.wait_for_timeout(8000)
-        
         try:
+            page.goto('https://pixai.art/en/login', wait_until='domcontentloaded', timeout=30000)
+            page.wait_for_selector('input[type="email"], button:has-text("Continue with Email")', timeout=15000)
+            
+            btn = page.query_selector('button:has-text("Continue with Email")')
+            if btn:
+                btn.click()
+                page.wait_for_selector('input[type="email"]', timeout=15000)
+            
+            page.fill('input[type="email"]', EMAIL)
+            page.fill('input[type="password"]', PASS)
+            page.press('input[type="password"]', 'Enter')
             page.wait_for_url(lambda u: '/en' in u and '/login' not in u, timeout=15000)
         except Exception as e:
-            print(f"⚠️ Error: {e}", file=sys.stderr)
+            log(f"Playwright login failed before session token was available: {e}")
+            browser.close()
+            return None
         
         token = page.evaluate('localStorage.getItem("https://api.pixai.art:token")')
         if token:
@@ -99,6 +110,7 @@ def login_and_save():
             bid = page.evaluate('localStorage.getItem("browser-id")') or ''
             browser.close()
             return {'token': token, 'browser_id': bid, 'state': state}
+        log("Playwright login completed without PixAI API token")
         browser.close()
     return None
 
@@ -137,7 +149,7 @@ def get_auth():
     
     return None
 
-def fetch_trending(auth, limit=15):
+def fetch_trending(auth, limit=15, retry_on_401=True):
     """Fetch trending artworks."""
     headers = dict(API_HEADERS)
     if auth.get('token'):
@@ -147,11 +159,23 @@ def fetch_trending(auth, limit=15):
     try:
         r = requests.get(f'https://api.pixai.art/v2/artwork/recommend?first={limit}',
                         headers=headers, cookies=auth.get('cookies', {}), timeout=15)
+        if r.status_code == 401:
+            log("artwork API returned HTTP 401")
+            if retry_on_401:
+                log("retrying once after Playwright re-login")
+                if os.path.exists(STATE_FILE):
+                    os.remove(STATE_FILE)
+                refreshed = login_and_save()
+                if refreshed:
+                    return fetch_trending(refreshed, limit, retry_on_401=False)
+            return []
         if r.status_code == 200:
             data = r.json().get('data', [])
             if data: return data
+        else:
+            log(f"artwork API returned HTTP {r.status_code}")
     except Exception as e:
-        print(f"⚠️ Error: {e}", file=sys.stderr)
+        log(f"artwork API failed: {e}")
     
     return []
 

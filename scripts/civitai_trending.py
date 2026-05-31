@@ -73,30 +73,12 @@ def fetch_images(limit=10):
     sys.exit(1)
 
 
-def hydrate_stats(image_id):
-    """Fetch real stats for a single image by ID."""
-    try:
-        r = requests.get(
-            API_URL,
-            params={"imageId": image_id, "browsingLevel": 31},
-            timeout=TIMEOUT
-        )
-        if r.status_code == 200:
-            data = r.json()
-            items = data.get('items', [])
-            if items and isinstance(items[0], dict):
-                return items[0].get('stats', {})
-    except Exception as e:
-        print(f"⚠️ Hydrate failed for {image_id}: {e}", file=sys.stderr)
-    return {}
-
-
-def format_item(item, hydrated_stats=None):
+def format_item(item):
     """Format a raw API item into a clean output dict."""
     if not isinstance(item, dict):
         return None
 
-    stats = hydrated_stats or item.get('stats') or {}
+    stats = item.get('stats', {})
     if not isinstance(stats, dict):
         stats = {}
 
@@ -132,9 +114,7 @@ def main():
         url = item.get('url') or ''
         if not isinstance(url, str) or url.endswith('.mp4') or url.endswith('.webm'):
             continue
-        image_id = item.get('id')
-        hydrated_stats = hydrate_stats(image_id) if image_id else {}
-        fmt = format_item(item, hydrated_stats)
+        fmt = format_item(item)
         if fmt:
             formatted.append(fmt)
             if len(formatted) >= count:
