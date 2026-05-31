@@ -1,0 +1,7 @@
+.pixiv_token.json
+*.log
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
