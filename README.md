@@ -76,3 +76,9 @@ SeaArt has no stable public API for community trending posts. The fetcher uses P
 | `SEAART_SORT` | `hot` | Sort order: `hot`, `new`, `recommended` |
 | `SEAART_PERIOD` | `week` | Time range: `week`, `month`, `all` |
 | `SEAART_POOL_SIZE` | `20` | Candidate pool size before local sort |
+
+## Probe / Dev-only Scripts
+
+These scripts are not part of the production pipeline:
+- `scripts/seaart_sdk_probe.py` — investigated unofficial SeaArt Python SDK
+- `scripts/seaart_crawl4ai_probe.py` — investigated crawl4ai as alternative

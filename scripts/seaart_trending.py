@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch SeaArt trending posts by scraping the rendered DOM with Playwright."""
+"""Fetch SeaArt posts with Playwright, applying the visible filter sheet when possible."""
 import json, os, re, sys, time
 import re as re_module
 from pathlib import Path
@@ -265,31 +265,6 @@ def extract_cards(page, limit):
     )
 
 
-def matching_option(page, labels):
-    """Find a visible option-like element whose text contains one of the labels."""
-    selectors = []
-    for label in labels:
-        selectors.extend([
-            f'text="{label}"',
-            f'[class*="option" i]:has-text("{label}")',
-            f'[class*="item" i]:has-text("{label}")',
-            f'button:has-text("{label}")',
-            f'div:has-text("{label}")',
-            f'span:has-text("{label}")',
-        ])
-
-    for selector in selectors:
-        try:
-            locator = page.locator(selector)
-            for i in range(min(locator.count(), 25)):
-                option = locator.nth(i)
-                if option.is_visible():
-                    return option
-        except Exception:
-            continue
-    return None
-
-
 def option_labels_for_period(period):
     if period == "day":
         log("period=day not available, falling back to week")
@@ -299,21 +274,6 @@ def option_labels_for_period(period):
     if period == "all":
         return period, ["All"]
     return period, [period.title()]
-
-
-def clickable_filter_button(handle):
-    """Return the nearest button handle for a matched filter icon/element."""
-    try:
-        if handle.evaluate("el => el.tagName && el.tagName.toLowerCase() === 'button'"):
-            return handle
-        button = handle.evaluate_handle("el => el.closest && el.closest('button')")
-        if button:
-            element = button.as_element()
-            if element:
-                return element
-    except Exception:
-        pass
-    return handle
 
 
 def filter_sheet_visible(page):
@@ -330,43 +290,6 @@ def filter_sheet_visible(page):
         return has_sort and has_period
     except Exception:
         return False
-
-
-def try_click_filter_icon(page, selectors, mobile=False):
-    for sel in selectors:
-        try:
-            for handle in page.query_selector_all(sel)[:8]:
-                btn = clickable_filter_button(handle)
-                box = btn.bounding_box()
-                if not box:
-                    continue
-                if box["width"] >= 60 or box["height"] >= 60:
-                    continue
-                if not mobile and box["y"] > 260:
-                    continue
-
-                original_url = page.url
-                btn.click()
-                page.wait_for_timeout(1500)
-
-                if "/postDetail/" in page.url or page.url != original_url:
-                    log(f"filter candidate navigated away via selector: {sel}")
-                    try:
-                        page.go_back(wait_until="domcontentloaded", timeout=15000)
-                        page.wait_for_selector(CARD_SELECTOR, timeout=10000)
-                    except Exception as e:
-                        log(f"returning after bad filter candidate failed: {e}")
-                    continue
-
-                if filter_sheet_visible(page):
-                    prefix = "filter sheet opened (mobile)" if mobile else "filter sheet opened"
-                    log(f"{prefix} via selector: {sel}")
-                    return True
-
-                log(f"filter candidate did not expose sheet via selector: {sel}")
-        except Exception as e:
-            log(f"filter selector failed sel='{sel}' error='{e}'")
-    return False
 
 
 def click_visible_filter_button(page):

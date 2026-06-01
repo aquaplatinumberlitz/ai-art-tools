@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Fetch AI news from RSS feeds, save as JSON for downstream agent.
+"""Fetch AI news from RSS feeds and save JSON for downstream report use.
 
-Runs as no_agent cron job (21:55 UTC).
 Output: /tmp/hermes_report/ai_news_raw.json
 """
-import json, os, sys, re, traceback, socket
+import json, os, sys, re, socket
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 import feedparser

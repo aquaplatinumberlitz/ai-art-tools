@@ -4,7 +4,7 @@ PixAI Blue Archive Fanart Crawler
 - Uses cookies from storage_state directly with GraphQL API (NO browser needed)
 - Falls back to Playwright login only when session expires
 """
-import json, sys, os, time, requests
+import json, sys, os, requests
 from playwright.sync_api import sync_playwright
 
 EMAIL = os.environ.get('PIXAI_EMAIL', '')
@@ -203,7 +203,6 @@ if __name__ == '__main__':
             os.remove(STATE_FILE)
         auth = login_and_save()
         if auth:
-            from functools import partial
             artworks = fetch_ba_via_api(token=auth.get('token', ''), cookies=auth.get('cookies', {}), limit=limit)
     if not artworks:
         print(json.dumps({"error": "No artworks found"}, ensure_ascii=False))
