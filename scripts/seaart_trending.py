@@ -11,6 +11,7 @@ SEAART_POST_URL = "https://seaart.ai/post"
 DEBUG_DIR = Path(os.environ.get("SEAART_DEBUG_DIR", "/tmp/hermes_debug/seaart"))
 
 _LAST_METRICS = {}
+_LAST_EXTRACTION_METRICS = {}
 
 
 def log(msg):
@@ -222,13 +223,140 @@ def cover_to_file_url(cover_url):
 
 def extract_cards(page, limit):
     """Extract raw post card data from the rendered page."""
-    return page.evaluate(
+    global _LAST_EXTRACTION_METRICS
+    payload = page.evaluate(
         """({limit, cardSelector, imgSelector, titleSelector, authorSelector}) => {
             const cards = [];
-            const links = document.querySelectorAll(cardSelector);
+            const metrics = {
+                global_post_links: 0,
+                feed_boundary_y: 0,
+                scoped_candidates: 0,
+                excluded_above_feed: 0,
+                excluded_community: 0,
+            };
+
+            const visible = (el) => {
+                const style = window.getComputedStyle(el);
+                const box = el.getBoundingClientRect();
+                return style.visibility !== 'hidden' &&
+                    style.display !== 'none' &&
+                    box.width > 0 &&
+                    box.height > 0;
+            };
+
+            const findFeedBoundaryY = () => {
+                const allEls = Array.from(document.querySelectorAll(
+                    'button, div, section, [role="button"], [class*="filter"], [class*="Filter"], a'
+                ));
+                const boundaryCandidates = allEls
+                    .filter((el) => {
+                        if (!visible(el)) return false;
+                        const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const className = String(el.className || '');
+                        const box = el.getBoundingClientRect();
+                        const absTop = box.top + window.scrollY;
+                        const hasRowClass = /(^|\\s)(my-)?filter-form-box(\\s|$)|right-filter-box|select-filter-box|filter-box/i.test(className);
+                        const hasFeedText = /Bài.đăng|Bài đăng|Post|Filter|filter|Sort By|Time Range|Trending|Recommended|Hot|New/i.test(text);
+                        return (hasRowClass || hasFeedText) &&
+                            el.offsetHeight > 0 &&
+                            el.offsetHeight < 110 &&
+                            box.width > 80 &&
+                            absTop > 80;
+                    })
+                    .map((el) => {
+                        const box = el.getBoundingClientRect();
+                        const className = String(el.className || '');
+                        const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const rowScore = /(^|\\s)(my-)?filter-form-box(\\s|$)/i.test(className) ? 0 :
+                            /right-filter-box|select-filter-box/i.test(className) ? 1 :
+                            /filter-box/i.test(className) ? 2 :
+                            /Sort By|Time Range|Trending|Recommended|Hot|New/i.test(text) ? 3 :
+                            4;
+                        return {
+                            y: box.bottom + window.scrollY,
+                            top: box.top + window.scrollY,
+                            area: box.width * box.height,
+                            score: rowScore,
+                        };
+                    })
+                    .filter((item) => item.y > 100)
+                    .sort((a, b) => a.score - b.score || a.y - b.y || a.area - b.area);
+                if (boundaryCandidates.length) {
+                    return Math.round(boundaryCandidates[0].y);
+                }
+
+                const rowCandidates = allEls
+                    .filter((el) => {
+                        if (!visible(el)) return false;
+                        const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const box = el.getBoundingClientRect();
+                        if (box.height <= 0 || box.height > 130 || box.width < 200) return false;
+                        const chipMatches = text.match(/Trending|Recommend|Recommended|New|Hot|Bài đăng|Post/gi) || [];
+                        const hasFilterSignal = /filter|Filter|Bộ lọc|Lọc/i.test(text) ||
+                            !!el.querySelector('svg, [class*="filter"], [class*="Filter"]');
+                        return box.top + window.scrollY > 80 && hasFilterSignal && chipMatches.length >= 1;
+                    })
+                    .map((el) => {
+                        const box = el.getBoundingClientRect();
+                        return {
+                            y: box.bottom + window.scrollY,
+                            area: box.width * box.height,
+                        };
+                    })
+                    .sort((a, b) => a.y - b.y || a.area - b.area);
+                if (rowCandidates.length) {
+                    return Math.round(rowCandidates[0].y);
+                }
+
+                const sections = Array.from(document.querySelectorAll('section, main, div'))
+                    .filter(visible)
+                    .map((el) => {
+                        const box = el.getBoundingClientRect();
+                        const postLinks = Array.from(el.querySelectorAll(cardSelector))
+                            .filter((link) => {
+                                const linkBox = link.getBoundingClientRect();
+                                return linkBox.width > 0 &&
+                                    linkBox.height > 0 &&
+                                    linkBox.top + window.scrollY > 250;
+                            });
+                        return {
+                            top: box.top + window.scrollY,
+                            bottom: box.bottom + window.scrollY,
+                            height: box.height,
+                            postLinks: postLinks.length,
+                        };
+                    })
+                    .filter((item) => item.postLinks > 3 && item.top > 150)
+                    .sort((a, b) => a.top - b.top || b.postLinks - a.postLinks);
+                if (sections.length) {
+                    return Math.max(0, Math.round(sections[0].top - 20));
+                }
+
+                return 0;
+            };
+
+            const links = Array.from(document.querySelectorAll(cardSelector));
+            metrics.global_post_links = links.length;
+            metrics.feed_boundary_y = findFeedBoundaryY();
 
             for (const link of links) {
                 if (cards.length >= limit) break;
+
+                const rect = link.getBoundingClientRect();
+                const absTop = rect.top + window.scrollY;
+                if (metrics.feed_boundary_y && absTop <= metrics.feed_boundary_y + 20) {
+                    metrics.excluded_above_feed += 1;
+                    continue;
+                }
+
+                const container = link.closest('section, div[class*="container"], div[class*="Container"], div[class*="grid"], div[class*="Grid"], div[class*="section"], div[class*="Section"]');
+                if (container) {
+                    const sectionText = (container.innerText || container.textContent || '').toLowerCase();
+                    if (/thành tựu|thành.tựu|cộng đồng|cộng.đồng|community|achievement|achieving|followers/.test(sectionText)) {
+                        metrics.excluded_community += 1;
+                        continue;
+                    }
+                }
 
                 const img = link.querySelector(imgSelector);
                 const titleEl = link.querySelector(titleSelector);
@@ -253,7 +381,8 @@ def extract_cards(page, limit):
                 });
             }
 
-            return cards;
+            metrics.scoped_candidates = cards.length;
+            return {cards, metrics};
         }""",
         {
             "limit": limit,
@@ -263,6 +392,11 @@ def extract_cards(page, limit):
             "authorSelector": AUTHOR_SELECTOR,
         },
     )
+    if isinstance(payload, dict):
+        _LAST_EXTRACTION_METRICS = payload.get("metrics") or {}
+        return payload.get("cards") or []
+    _LAST_EXTRACTION_METRICS = {}
+    return payload or []
 
 
 def option_labels_for_period(period):
@@ -560,6 +694,7 @@ def apply_filters(page, context=None):
     except Exception as e:
         log(f"cards did not reload after filter step: {e}")
 
+    save_debug_screenshot(page, "filter-after-applied")
     return result
 
 
@@ -643,6 +778,7 @@ def dedupe_items(raw_cards, limit):
 
 def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filter_status=None):
     filter_status = filter_status or {}
+    extraction_metrics = _LAST_EXTRACTION_METRICS or {}
     return {
         "sort": SEAART_SORT,
         "period": SEAART_PERIOD,
@@ -650,6 +786,11 @@ def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filt
         "sort_applied": filter_status.get("sort_applied", False),
         "period_applied": filter_status.get("period_applied", False),
         "pool_size": SEAART_POOL_SIZE,
+        "global_post_links": extraction_metrics.get("global_post_links", selector_matches or len(raw_cards)),
+        "feed_boundary_y": extraction_metrics.get("feed_boundary_y", 0),
+        "scoped_candidates": extraction_metrics.get("scoped_candidates", len(raw_cards)),
+        "excluded_above_feed": extraction_metrics.get("excluded_above_feed", 0),
+        "excluded_community": extraction_metrics.get("excluded_community", 0),
         "candidates": len(items) if candidates is None else candidates,
         "selector_matches": len(raw_cards) if selector_matches is None else selector_matches,
         "items": len(items),
@@ -661,6 +802,12 @@ def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filt
 
 
 def log_metrics(metrics):
+    print(
+        "[SeaArt] feed_boundary_y={feed_boundary_y} global_post_links={global_post_links} "
+        "scoped={scoped_candidates} excluded_above_feed={excluded_above_feed} "
+        "excluded_community={excluded_community}".format(**metrics),
+        file=sys.stderr,
+    )
     print(
         "[SeaArt] sort={sort} period={period} filter_sheet_opened={filter_sheet_opened} "
         "sort_applied={sort_applied} period_applied={period_applied} pool={pool_size} "
