@@ -2,8 +2,37 @@
 # Daily AI Art Report — Fetch 10 data sources, then build report.html
 # Runs as no_agent=true cron job at 22:15 UTC
 REPORT_DIR="${HERMES_DATA_DIR:-/tmp/hermes_report}"
+HERMES_REPO_DIR="${HERMES_REPO_DIR:-/tmp/ai-art-tools}"
+HERMES_SCRIPT_DIR="$HERMES_REPO_DIR/scripts"
 mkdir -p "$REPORT_DIR"
-cd "${HERMES_SCRIPT_DIR:-/home/ubuntu/.hermes/scripts}"
+
+required_scripts=(
+    seaart_trending.py
+    pixiv_app.py
+    danbooru_trending.py
+    civitai_trending.py
+    pixai_trending.py
+    pixiv_search_ba.py
+    pixai_ba.py
+    reddit_rss.py
+    hf_models_trending.py
+    build_report_canonical.py
+)
+
+if [ ! -d "$HERMES_SCRIPT_DIR" ]; then
+    echo "❌ HERMES_SCRIPT_DIR does not exist: $HERMES_SCRIPT_DIR" >&2
+    exit 1
+fi
+
+for script in "${required_scripts[@]}"; do
+    if [ ! -f "$HERMES_SCRIPT_DIR/$script" ]; then
+        echo "❌ Required script missing: $HERMES_SCRIPT_DIR/$script" >&2
+        exit 1
+    fi
+done
+
+cd "$HERMES_SCRIPT_DIR"
+export HERMES_REPO_DIR HERMES_SCRIPT_DIR
 
 echo "📡 Daily Report Pipeline — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 FAILED=0
@@ -107,8 +136,10 @@ run_json_source() {
 
     local tmp="${output}.tmp.$$"
     local err="${output}.err.$$"
+    local json_err="${output}.json.err.$$"
     rm -f "$tmp"
     rm -f "$err"
+    rm -f "$json_err"
 
     local source_timeout="${HERMES_SOURCE_TIMEOUT:-120}"
     local start=$SECONDS
@@ -116,23 +147,34 @@ run_json_source() {
     local duration=0
     local item_count=0
     local error_msg=""
+    local quality=""
+    local warning=""
 
     timeout "$source_timeout" "$@" > "$tmp" 2> "$err"
     rc=$?
     duration=$((SECONDS - start))
 
     if [ "$rc" -eq 0 ]; then
-        if item_count=$(python3 -c "import json, sys; print(len(json.load(open(sys.argv[1], encoding='utf-8'))))" "$tmp" 2> "$err"); then
+        if item_count=$(python3 -c "import json, sys; print(len(json.load(open(sys.argv[1], encoding='utf-8'))))" "$tmp" 2> "$json_err"); then
             if mv "$tmp" "$output"; then
-                if ! update_source_status "$label" "$output" "$tmp" "$duration" "1" "$item_count" "" "hot_week" ""; then
+                if [ "$label" = "SeaArt" ]; then
+                    if grep -q "content_changed=true" "$err"; then
+                        quality="hot_week"
+                    elif grep -q "content_changed=false" "$err"; then
+                        quality="default_feed"
+                        warning="filter did not change content; using default feed"
+                    fi
+                fi
+                if ! update_source_status "$label" "$output" "$tmp" "$duration" "1" "$item_count" "" "$quality" "$warning"; then
                     echo "⚠️ $label status update failed" >&2
                 fi
                 rm -f "$err"
+                rm -f "$json_err"
                 return 0
             fi
             error_msg="could not replace JSON output"
         else
-            error_msg="invalid JSON: $(tr '\n' ' ' < "$err" | cut -c1-180)"
+            error_msg="invalid JSON: $(tr '\n' ' ' < "$json_err" | cut -c1-180)"
         fi
     elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
         error_msg="timeout after ${source_timeout}s"
@@ -152,6 +194,7 @@ run_json_source() {
     fi
     rm -f "$tmp"
     rm -f "$err"
+    rm -f "$json_err"
     FAILED=$((FAILED + 1))
     return 1
 }

@@ -410,6 +410,51 @@ def option_labels_for_period(period):
     return period, [period.title()]
 
 
+def feed_fingerprint(page):
+    """Return the first visible feed cards as a stable content fingerprint."""
+    try:
+        fingerprint = page.evaluate(
+            """() => {
+                const visible = (el) => {
+                    const style = window.getComputedStyle(el);
+                    const box = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' &&
+                        style.display !== 'none' &&
+                        box.width > 0 &&
+                        box.height > 0;
+                };
+                return Array.from(document.querySelectorAll('a[href*="postDetail"]'))
+                    .filter(visible)
+                    .slice(0, 5)
+                    .map((a) => ({
+                        href: a.href,
+                        title: (
+                            a.querySelector('img')?.alt ||
+                            a.querySelector('[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]')?.textContent ||
+                            ''
+                        ).trim().replace(/\\s+/g, ' '),
+                    }));
+            }"""
+        )
+        return fingerprint if isinstance(fingerprint, list) else []
+    except Exception as e:
+        log(f"filter fingerprint capture failed: {e}")
+        return []
+
+
+def fingerprint_json(fingerprint):
+    return json.dumps(fingerprint or [], sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def fingerprint_ids(fingerprint):
+    ids = []
+    for item in fingerprint or []:
+        href = item.get("href", "") if isinstance(item, dict) else ""
+        match = DETAIL_URL_REGEX.search(href)
+        ids.append(match.group(1) if match else href[-36:])
+    return ids
+
+
 def filter_sheet_visible(page):
     """Best-effort check that a filter/drawer UI is now visible."""
     try:
@@ -644,6 +689,55 @@ def click_filter_option(page, label, exact=True):
     return False
 
 
+def click_filter_apply_button(page):
+    """Click an explicit filter apply/confirm action when SeaArt exposes one."""
+    apply_labels = [
+        "Apply",
+        "Confirm",
+        "Done",
+        "OK",
+        "Save",
+        "適用",
+        "確認",
+        "完了",
+    ]
+    for label in apply_labels:
+        try:
+            option = page.get_by_role(
+                "button", name=re_module.compile(rf"^{re_module.escape(label)}$", re_module.I)
+            ).first
+            if option.is_visible(timeout=500):
+                option.click()
+                page.wait_for_timeout(1000)
+                log(f"filter sheet action clicked: {label}")
+                return "button"
+        except Exception:
+            pass
+        try:
+            option = page.get_by_text(label, exact=True).first
+            if option.is_visible(timeout=500):
+                option.click()
+                page.wait_for_timeout(1000)
+                log(f"filter sheet action clicked via text: {label}")
+                return "text"
+        except Exception:
+            pass
+
+    return ""
+
+
+def dismiss_filter_sheet(page):
+    """Close transient filter UI without clicking page chrome or promotions."""
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(500)
+        log("filter sheet close attempted via Escape")
+    except Exception as e:
+        log(f"filter sheet Escape failed: {e}")
+
+    return "dismiss"
+
+
 def apply_filters(page, context=None):
     """Try to open SeaArt filter sheet and select sort/period options.
     Returns dict with status fields."""
@@ -653,8 +747,17 @@ def apply_filters(page, context=None):
         "period_applied": False,
         "sort_value": None,
         "period_value": None,
+        "content_changed": False,
+        "quality": "default_feed",
+        "warning": "",
+        "before_fingerprint": [],
+        "after_fingerprint": [],
     }
 
+    before_fingerprint = feed_fingerprint(page)
+    before_fp = fingerprint_json(before_fingerprint)
+    result["before_fingerprint"] = before_fingerprint
+    log(f"before_fingerprint_ids={fingerprint_ids(before_fingerprint)}")
     save_debug_screenshot(page, "filter-before")
     debug_probe_page(page, "filter-probe-before")
 
@@ -664,6 +767,11 @@ def apply_filters(page, context=None):
         debug_probe_page(page, "filter-probe-after-open")
     else:
         log("filter_sheet_opened=false fallback_default_feed=true reason='filter button not found'")
+        after_fingerprint = feed_fingerprint(page)
+        result["after_fingerprint"] = after_fingerprint
+        result["warning"] = "filter button not found; using default feed"
+        log(f"after_fingerprint_ids={fingerprint_ids(after_fingerprint)}")
+        log("content_changed=false quality=default_feed warning='filter button not found; using default feed'")
         return result
 
     sort_label = SEAART_SORT.title()
@@ -687,12 +795,84 @@ def apply_filters(page, context=None):
     if not result["period_applied"]:
         log(f"period option not visible in filter sheet: {period_value}")
 
+    click_filter_apply_button(page)
+
     try:
         page.wait_for_selector(CARD_SELECTOR, timeout=10000)
-        page.wait_for_timeout(1500)
-        log("cards available after filter step")
+        page.wait_for_function(
+            """(beforeFp) => {
+                const visible = (el) => {
+                    const style = window.getComputedStyle(el);
+                    const box = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' &&
+                        style.display !== 'none' &&
+                        box.width > 0 &&
+                        box.height > 0;
+                };
+                const now = Array.from(document.querySelectorAll('a[href*="postDetail"]'))
+                    .filter(visible)
+                    .slice(0, 5)
+                    .map((a) => ({
+                        href: a.href,
+                        title: (
+                            a.querySelector('img')?.alt ||
+                            a.querySelector('[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]')?.textContent ||
+                            ''
+                        ).trim().replace(/\\s+/g, ' '),
+                    }));
+                return JSON.stringify(now) !== beforeFp;
+            }""",
+            arg=before_fp,
+            timeout=15000,
+        )
+        result["content_changed"] = True
+        result["quality"] = "hot_week"
+        log("cards changed after filter step")
     except Exception as e:
-        log(f"cards did not reload after filter step: {e}")
+        log(f"filter: content did not change before dismissing filter UI: {e}")
+        dismiss_filter_sheet(page)
+        try:
+            page.wait_for_selector(CARD_SELECTOR, timeout=5000)
+            page.wait_for_function(
+                """(beforeFp) => {
+                    const visible = (el) => {
+                        const style = window.getComputedStyle(el);
+                        const box = el.getBoundingClientRect();
+                        return style.visibility !== 'hidden' &&
+                            style.display !== 'none' &&
+                            box.width > 0 &&
+                            box.height > 0;
+                    };
+                    const now = Array.from(document.querySelectorAll('a[href*="postDetail"]'))
+                        .filter(visible)
+                        .slice(0, 5)
+                        .map((a) => ({
+                            href: a.href,
+                            title: (
+                                a.querySelector('img')?.alt ||
+                                a.querySelector('[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]')?.textContent ||
+                                ''
+                            ).trim().replace(/\\s+/g, ' '),
+                        }));
+                    return JSON.stringify(now) !== beforeFp;
+                }""",
+                arg=before_fp,
+                timeout=5000,
+            )
+            result["content_changed"] = True
+            result["quality"] = "hot_week"
+            log("cards changed after filter UI dismiss")
+        except Exception as dismiss_error:
+            result["warning"] = "filter did not change content; using default feed"
+            log(f"filter: content did not change after Hot/Week selection: {dismiss_error}")
+
+    after_fingerprint = feed_fingerprint(page)
+    result["after_fingerprint"] = after_fingerprint
+    log(f"after_fingerprint_ids={fingerprint_ids(after_fingerprint)}")
+    if result["content_changed"]:
+        log("content_changed=true quality=hot_week")
+    else:
+        log("content_changed=false quality=default_feed warning='filter did not change content; using default feed'")
 
     save_debug_screenshot(page, "filter-after-applied")
     return result
@@ -785,6 +965,9 @@ def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filt
         "filter_sheet_opened": filter_status.get("filter_sheet_opened", False),
         "sort_applied": filter_status.get("sort_applied", False),
         "period_applied": filter_status.get("period_applied", False),
+        "content_changed": filter_status.get("content_changed", False),
+        "quality": filter_status.get("quality", "default_feed"),
+        "warning": filter_status.get("warning", ""),
         "pool_size": SEAART_POOL_SIZE,
         "global_post_links": extraction_metrics.get("global_post_links", selector_matches or len(raw_cards)),
         "feed_boundary_y": extraction_metrics.get("feed_boundary_y", 0),
@@ -810,7 +993,8 @@ def log_metrics(metrics):
     )
     print(
         "[SeaArt] sort={sort} period={period} filter_sheet_opened={filter_sheet_opened} "
-        "sort_applied={sort_applied} period_applied={period_applied} pool={pool_size} "
+        "sort_applied={sort_applied} period_applied={period_applied} "
+        "content_changed={content_changed} quality={quality} pool={pool_size} "
         "candidates={candidates} items={items} images={images} titles={titles} authors={authors} "
         "likes_nonzero={likes_nonzero} top_likes={top_likes} "
         "runtime={runtime:.1f}s retries={retries}".format(**metrics),

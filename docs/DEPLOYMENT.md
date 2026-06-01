@@ -51,8 +51,9 @@ Optional:
 The installer writes `$HERMES_HOME/.env`.
 
 - If `.env` does not exist, it copies `.env.example` and fills known values from the account file.
-- If `.env` exists, it creates a timestamped backup named `.env.bak.<timestamp>`, keeps existing non-empty values, and fills or appends only missing values.
-- On a fresh `.env`, deployment paths are adjusted to use `$HERMES_HOME/cron`, `$HERMES_HOME/cron/images`, and `$HERMES_REPO_DIR/scripts`.
+- If `.env` exists, it creates a timestamped backup named `.env.bak.<timestamp>`, keeps existing non-empty credential values, and fills or appends missing values.
+- On a fresh `.env`, deployment paths are adjusted to use `$HERMES_HOME/cron` and `$HERMES_HOME/cron/images`.
+- On every install, `HERMES_SCRIPT_DIR` is set to `$HERMES_REPO_DIR/scripts` so cron runs the scripts from the repository checkout.
 - Secret values are never printed. The installer reports only `found` or `missing` for each supported key.
 - The installer applies `chmod 600` to `.env` and discovered account files.
 
@@ -67,6 +68,8 @@ set -a
 set +a
 bash scripts/daily_report_pipeline.sh
 ```
+
+The pipeline also derives `HERMES_SCRIPT_DIR` from `HERMES_REPO_DIR` at startup, validates that all required source scripts exist, and exits before fetching if any required script is missing.
 
 ## Logs
 
@@ -87,6 +90,10 @@ The installer writes a marked crontab block:
 ```
 
 To remove cron, run `crontab -e` and delete that whole block.
+
+## SeaArt Filter Quality
+
+SeaArt runs from `scripts/seaart_trending.py` in the repo checkout. The fetcher records a fingerprint of the first feed card URLs/titles before selecting filters, then waits for the fingerprint to change after Hot/Week selection. If it changes, source status is marked `quality=hot_week`; otherwise the report keeps the JSON but marks `quality=default_feed` with a warning.
 
 ## Update Repo
 

@@ -222,8 +222,8 @@ generate_env() {
     if [ "$created_env" -eq 1 ]; then
         force_set_env_key HERMES_REPORT_DIR "$HERMES_HOME/cron"
         force_set_env_key HERMES_IMAGE_DIR "$HERMES_HOME/cron/images"
-        force_set_env_key HERMES_SCRIPT_DIR "$HERMES_REPO_DIR/scripts"
     fi
+    force_set_env_key HERMES_SCRIPT_DIR "$HERMES_REPO_DIR/scripts"
 
     for key in "${ACCOUNT_KEYS[@]}"; do
         if [ -n "${ACCOUNT_VALUES[$key]:-}" ]; then

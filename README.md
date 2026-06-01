@@ -64,7 +64,8 @@ python3 scripts/seaart_trending.py > /tmp/hermes_report/seaart.json
 - `deploy/install.sh` — recommended setup path. It creates `$HERMES_HOME/.env`, reuses account markdown files when available, and installs the cron job.
 - `scripts/.pixiv_token.json` — Pixiv OAuth refresh token, with a `refresh_token` field, used by `pixiv_app.py` and `pixiv_search_ba.py`.
 - `PIXAI_EMAIL` and `PIXAI_PASSWORD` — PixAI login credentials used when the saved Playwright session expires.
-- `/home/ubuntu/.hermes/scripts` — pipeline working directory in `scripts/daily_report_pipeline.sh`; scripts and `scripts/.pixiv_token.json` must be available there for the deployed cron job.
+- `HERMES_REPO_DIR` — repository root used by the cron pipeline. Defaults to `/tmp/ai-art-tools`.
+- `HERMES_SCRIPT_DIR` — derived from `HERMES_REPO_DIR/scripts` by `scripts/daily_report_pipeline.sh`; production scripts run from the repo checkout, not from `~/.hermes/scripts`.
 - `/tmp/hermes_report` — JSON data directory used by `scripts/daily_report_pipeline.sh` and `scripts/build_report_canonical.py`.
 - `/home/ubuntu/.hermes/cron` — report output directory used by `scripts/build_report_canonical.py`; it must also contain `pixiv_downloader.py`.
 - `/home/ubuntu/.hermes/cron/images` — local image cache directory used by `scripts/build_report_canonical.py`.
@@ -80,7 +81,8 @@ The pipeline and report builder can be configured with environment variables for
 SeaArt has no stable public API for community trending posts. The fetcher uses Playwright DOM scraping on `seaart.ai/post`.
 
 - The fetcher attempts to open the visible Filter UI and select Hot/Week when configured.
-- If the filter UI cannot be applied, it falls back to the default feed.
+- After selecting filters, it compares the first feed card URLs/titles before and after the filter action. It reports `quality=hot_week` only when that fingerprint changes.
+- If the filter UI cannot be applied or the feed fingerprint does not change, it marks `quality=default_feed` and warns that the default feed was used.
 - A candidate pool (default 20) is fetched and locally sorted by likes (descending), with views as tie-breaker.
 - The final requested count (e.g. 10) is selected from the top-scoring candidates.
 - Stale fallback: if a SeaArt fetch fails, the previous valid JSON is preserved and the report footer marks it as stale.
