@@ -2,6 +2,21 @@
 
 Daily AI art report build system — fetches trending art from multiple sources and generates an HTML report.
 
+## Quick Install
+
+```bash
+bash deploy/install.sh
+```
+
+The installer will:
+1. Clone/sync the repository
+2. Install Python dependencies
+3. Detect existing Hermes account files for credentials
+4. Generate a `.env` configuration
+5. Set up the daily cron job
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for details.
+
 ## Data Sources
 
 | Source | Script | API |
@@ -38,7 +53,7 @@ python3 scripts/seaart_trending.py > /tmp/hermes_report/seaart.json
 
 - Python packages used by the fetchers/report builder: `requests`, `feedparser`, `pixivpy3`, `playwright`, and `Pillow`.
 - System commands used by the report builder: `curl` and `ffmpeg`.
-- Playwright browsers must be installed on the server for SeaArt and PixAI:
+- Playwright browsers must be installed on the server for SeaArt and PixAI. The installer handles this automatically, or you can run it manually:
   ```bash
   python3 -m playwright install chromium
   ```
@@ -46,6 +61,7 @@ python3 scripts/seaart_trending.py > /tmp/hermes_report/seaart.json
 
 ## Configuration
 
+- `deploy/install.sh` — recommended setup path. It creates `$HERMES_HOME/.env`, reuses account markdown files when available, and installs the cron job.
 - `scripts/.pixiv_token.json` — Pixiv OAuth refresh token, with a `refresh_token` field, used by `pixiv_app.py` and `pixiv_search_ba.py`.
 - `PIXAI_EMAIL` and `PIXAI_PASSWORD` — PixAI login credentials used when the saved Playwright session expires.
 - `/home/ubuntu/.hermes/scripts` — pipeline working directory in `scripts/daily_report_pipeline.sh`; scripts and `scripts/.pixiv_token.json` must be available there for the deployed cron job.

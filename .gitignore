@@ -1,8 +1,10 @@
 .pixiv_token.json
 *.log
+logs/
 __pycache__/
 *.pyc
 .env
 venv/
 .venv/
+accounts/
 references/accounts.md

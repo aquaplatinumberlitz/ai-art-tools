@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Fetch Pixiv R18 daily/weekly ranking via App API (pixivpy3)."""
-import json, sys
+import json, os, sys
 from pathlib import Path
 from pixivpy3 import AppPixivAPI
 
-TOKEN_FILE = Path(__file__).with_name('.pixiv_token.json')
+TOKEN_FILE = Path(os.path.expanduser(os.environ.get(
+    'PIXIV_TOKEN_FILE',
+    str(Path(__file__).with_name('.pixiv_token.json')),
+)))
 
 try:
     with open(TOKEN_FILE) as f:

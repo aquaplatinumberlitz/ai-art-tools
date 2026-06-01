@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 
 EMAIL = os.environ.get('PIXAI_EMAIL', '')
 PASS = os.environ.get('PIXAI_PASSWORD', '')
-STATE_FILE = os.path.expanduser("~/.hermes/scripts/.pixai_state.json")
+STATE_FILE = os.path.expanduser(os.environ.get("PIXAI_STATE_FILE", "~/.hermes/scripts/.pixai_state.json"))
 
 API_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',

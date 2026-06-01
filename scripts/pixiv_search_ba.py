@@ -4,12 +4,15 @@
 Uses the same auth pattern as pixiv_app.py (refresh token).
 Sorts by popularity, filters to items from today/yesterday.
 """
-import json, sys
+import json, os, sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from pixivpy3 import AppPixivAPI
 
-TOKEN_FILE = Path(__file__).with_name('.pixiv_token.json')
+TOKEN_FILE = Path(os.path.expanduser(os.environ.get(
+    'PIXIV_TOKEN_FILE',
+    str(Path(__file__).with_name('.pixiv_token.json')),
+)))
 
 try:
     with open(TOKEN_FILE) as f:
