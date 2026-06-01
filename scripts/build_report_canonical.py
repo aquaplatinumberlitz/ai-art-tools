@@ -567,7 +567,29 @@ body::after{content:'';position:fixed;z-index:0;bottom:-15%;right:-8%;width:260p
 .hf-meta .lucide{width:13px;height:13px;stroke-width:1.75}
 .hf-body{min-width:0}
 .empty-card{display:flex;min-height:130px;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--border);border-radius:16px;background:var(--surface);color:var(--muted);font-size:13px}
-.footer{padding:22px 0;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--border);margin-top:36px}
+.report-footer{margin-top:36px;padding:16px 0}
+.footer-divider{height:1px;background:var(--border);margin-bottom:16px}
+.footer-main{text-align:center}
+.footer-generated{color:var(--muted);font-size:12px}
+.footer-summary{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:12px;flex-wrap:wrap}
+.summary-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.summary-dot.fresh{background:#16a34a}
+.summary-dot.amber{background:#f59e0b}
+.summary-dot.red{background:#dc2626}
+.source-details summary{cursor:pointer;font-size:12px;color:var(--muted);padding:6px 0;text-align:center}
+.source-details:not([open]) .source-grid{display:none}
+.source-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;padding:8px 0}
+.source-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;white-space:nowrap}
+.source-chip .dot{font-size:10px;line-height:1}
+.source-chip.fresh .dot{color:#16a34a}
+.source-chip.stale .dot{color:#f59e0b}
+.source-chip.failed .dot{color:#dc2626}
+@media(min-width:768px){
+  .footer-summary{margin-bottom:4px}
+  .source-details summary{display:none}
+  .source-details:not([open]) .source-grid{display:flex}
+  .source-details .source-grid{padding-top:4px}
+}
 @media(max-width:900px){.trend-mosaic{grid-template-columns:repeat(2,1fr);grid-auto-rows:220px;grid-auto-flow:dense}.trend-card:first-child{grid-column:span 2;grid-row:span 1}.image-grid{grid-template-columns:repeat(2,1fr)}.links-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.trend-mosaic{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;padding-bottom:6px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}.trend-mosaic > *{flex:0 0 auto;width:75vw;max-width:320px;min-height:220px;scroll-snap-align:start}}
 @media(max-width:560px){.image-grid{grid-template-columns:1fr}}
@@ -660,61 +682,92 @@ def _build_status_html():
             return 'unknown'
         return str(value).replace('T', ' ').replace('+00:00', ' UTC')
 
-    def fmt_items(value):
-        try:
-            return int(value)
-        except Exception:
-            return 0
-
-    items = []
     sources = st.get('sources', {})
     if not isinstance(sources, dict):
         return ''
 
+    total = len(sources)
+    fresh_count = 0
+    stale_count = 0
+    failed_count = 0
+    total_items = 0
+    chips = []
+
     for name, source in sources.items():
         if not isinstance(source, dict):
             continue
-        safe_name = escape(str(name))
         ok = bool(source.get('ok'))
         stale = bool(source.get('stale'))
-        count = fmt_items(source.get('items'))
-        duration = source.get('duration_sec') or 0
+        safe_name = escape(str(name))
+        count = source.get('items', 0)
         try:
-            duration = float(duration)
+            count = int(count)
         except Exception:
-            duration = 0.0
-        error = escape(str(source.get('error') or 'unknown'))
+            count = 0
+        total_items += count
 
         if ok and not stale:
-            color = '#16a34a'
-            label = f'{safe_name} · {count} items'
+            fresh_count += 1
+            try:
+                duration = float(source.get("duration_sec", 0))
+            except Exception:
+                duration = 0.0
+            label = f'{safe_name} {count}'
             title = f'OK · {count} items · {duration:.1f}s · updated {fmt_time(source.get("updated_at"))}'
-            aria = f'{name}: OK, {count} items'
+            aria = f'OK · {duration:.1f}s · updated {fmt_time(source.get("updated_at"))}'
+            chip_cls = 'fresh'
         elif (not ok) and stale:
-            color = '#f59e0b'
-            label = f'{safe_name} · stale · {count} items'
-            title = f'STALE fallback · {count} old items · last success {fmt_time(source.get("last_success_at"))} · error: {source.get("error") or "unknown"}'
-            aria = f'{name}: stale fallback, {count} old items'
+            stale_count += 1
+            label = f'{safe_name} stale · {count}'
+            error = str(source.get("error", "unknown"))
+            title = f'STALE fallback · {count} old items · last success {fmt_time(source.get("last_success_at"))} · error: {error}'
+            aria = f'last success {fmt_time(source.get("last_success_at"))} · error: {error}'
+            chip_cls = 'stale'
         else:
-            color = '#dc2626'
-            label = f'{safe_name} · failed'
-            title = f'FAILED · no usable JSON · error: {source.get("error") or "unknown"}'
-            aria = f'{name}: failed, no usable JSON'
+            failed_count += 1
+            label = f'{safe_name} failed'
+            error = str(source.get("error", "unknown"))
+            title = f'FAILED · no usable JSON · error: {error}'
+            aria = f'no usable JSON · error: {error}'
+            chip_cls = 'failed'
 
-        items.append(
-            f'<span title="{escape(title)}" aria-label="{escape(aria)}" '
-            f'style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px;white-space:nowrap">'
-            f'<span aria-hidden="true" style="color:{color};font-size:10px;line-height:1">●</span>'
-            f'<span style="font-size:11px;line-height:1.4;color:#6b7280">{label}</span></span>'
+        chips.append(
+            f'<span class="source-chip {chip_cls}" title="{escape(title)}" aria-label="{escape(aria)}">'
+            f'<span class="dot" aria-hidden="true">●</span>'
+            f'<span>{label}</span></span>'
         )
 
-    if not items:
-        return ''
+    # Build summary line
+    summary_parts = []
+    if stale_count == 0 and failed_count == 0:
+        summary_text = f'{total}/{total} sources fresh · {total_items} items'
+        summary_dot = 'fresh'
+    else:
+        summary_parts.append(f'{fresh_count}/{total} sources fresh')
+        if stale_count:
+            summary_parts.append(f'{stale_count} stale')
+        if failed_count:
+            summary_parts.append(f'{failed_count} failed')
+        summary_parts.append(f'{total_items} items')
+        summary_text = ' · '.join(summary_parts)
+        if stale_count and not failed_count:
+            summary_dot = 'amber'
+        elif failed_count:
+            summary_dot = 'red'
+        else:
+            summary_dot = 'fresh'
+
+    chips_html = '<div class="source-grid">' + ''.join(chips) + '</div>' if chips else ''
+
     return (
-        '<div role="status" aria-label="Source fetch status" '
-        'style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px;'
-        'max-width:100%;padding:8px 0;overflow-wrap:anywhere">'
-        f'{"".join(items)}</div>'
+        '<div class="footer-summary">'
+        f'<span class="summary-dot {summary_dot}"></span>'
+        f'<span>{escape(summary_text)}</span>'
+        '</div>'
+        '<details class="source-details">'
+        '<summary>Source details</summary>'
+        f'{chips_html}'
+        '</details>'
     )
 
 def build_demo_gallery():
@@ -871,9 +924,12 @@ def build_demo_gallery():
     </div>
   </section>
 
-  <footer class="footer">
+  <footer class="report-footer">
     {_build_status_html()}
-    Generated {today} · <i data-lucide="heart"></i> Hermes Report System · <i data-lucide="wand-sparkles"></i> Pastel Dreamscape
+    <div class="footer-divider"></div>
+    <div class="footer-main">
+      <div class="footer-generated">Generated {today} · Hermes Report System</div>
+    </div>
   </footer>
 </main>
 {DG_JS}
