@@ -4,7 +4,7 @@
 Usage:
   python3 /home/ubuntu/.hermes/scripts/build_report_canonical.py
 
-Output: /home/ubuntu/.hermes/cron/report_demo_gallery.html
+Output: /home/ubuntu/.hermes/cron/report.html
 
 Section order (FIXED - do not change):
   1. Pixiv SFW (5)
@@ -34,10 +34,10 @@ import json, os, subprocess, sys
 from html import escape
 from datetime import datetime
 
-CACHE_DIR = '/home/ubuntu/.hermes/cron/images'
-REPORT_DIR = '/home/ubuntu/.hermes/cron'
-DATA_DIR = '/tmp/hermes_report'
-BASE_URL = 'http://150.230.56.153:8002'
+CACHE_DIR = os.environ.get("HERMES_IMAGE_DIR", "/home/ubuntu/.hermes/cron/images")
+REPORT_DIR = os.environ.get("HERMES_REPORT_DIR", "/home/ubuntu/.hermes/cron")
+DATA_DIR = os.environ.get("HERMES_DATA_DIR", "/tmp/hermes_report")
+BASE_URL = os.environ.get("HERMES_BASE_URL", "http://150.230.56.153:8002")
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -647,6 +647,21 @@ def _relative_time(iso_str):
     except Exception:
         return None
 
+def _build_status_html():
+    status_path = os.path.join(DATA_DIR, 'source_status.json')
+    try:
+        with open(status_path) as f:
+            st = json.load(f)
+    except Exception:
+        return ''
+    items = ''.join(
+        f'<span style="display:inline-flex;align-items:center;gap:4px;margin:0 6px">'
+        f'<span style="color:{"#4caf50" if v["ok"] else "#e53935"};font-size:10px">{"●" if v["ok"] else "○"}</span>'
+        f'<span style="font-size:11px">{k}</span></span>'
+        for k, v in st.get('sources', {}).items()
+    )
+    return f'<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:8px 0">{items}</div>'
+
 def build_demo_gallery():
     pixiv_sfw = load_json('pixiv_sfw.json')
     pixiv_r18 = load_json('pixiv_r18.json')
@@ -802,6 +817,7 @@ def build_demo_gallery():
   </section>
 
   <footer class="footer">
+    {_build_status_html()}
     Generated {today} · <i data-lucide="heart"></i> Hermes Report System · <i data-lucide="wand-sparkles"></i> Pastel Dreamscape
   </footer>
 </main>

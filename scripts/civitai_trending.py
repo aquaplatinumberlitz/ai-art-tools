@@ -16,7 +16,11 @@ API_URL = "https://civitai.com/api/v1/images"
 TIMEOUT = 30
 MAX_RETRIES = 3
 HYDRATE_MODE = os.environ.get("CIVITAI_HYDRATE_STATS", "auto")
-MAX_HYDRATE = int(os.environ.get("CIVITAI_MAX_HYDRATE", "20"))
+try:
+    MAX_HYDRATE = int(os.environ.get("CIVITAI_MAX_HYDRATE", "20"))
+except (ValueError, TypeError):
+    MAX_HYDRATE = 20
+    print("⚠️ Invalid CIVITAI_MAX_HYDRATE, using default 20", file=sys.stderr)
 
 
 def reaction_score(stats):

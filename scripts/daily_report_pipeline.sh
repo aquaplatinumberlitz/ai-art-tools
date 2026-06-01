@@ -1,9 +1,9 @@
 #!/bin/bash
 # Daily AI Art Report — Fetch 10 data sources, then build report.html
 # Runs as no_agent=true cron job at 22:15 UTC
-REPORT_DIR="/tmp/hermes_report"
+REPORT_DIR="${HERMES_DATA_DIR:-/tmp/hermes_report}"
 mkdir -p "$REPORT_DIR"
-cd /home/ubuntu/.hermes/scripts
+cd "${HERMES_SCRIPT_DIR:-/home/ubuntu/.hermes/scripts}"
 
 echo "📡 Daily Report Pipeline — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 FAILED=0
@@ -16,12 +16,22 @@ run_json_source() {
     local tmp="${output}.tmp.$$"
     rm -f "$tmp"
 
-    if "$@" > "$tmp" && python3 -c "import json, sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$tmp"; then
+    local source_timeout="${HERMES_SOURCE_TIMEOUT:-120}"
+    if timeout "$source_timeout" "$@" > "$tmp" 2>&1; then
+        :
+    else
+        echo "⚠️ $label failed (timeout=${source_timeout}s)" >&2
+        rm -f "$tmp"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    if python3 -c "import json, sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$tmp"; then
         mv "$tmp" "$output"
         return 0
     fi
 
-    echo "⚠️ $label failed" >&2
+    echo "⚠️ $label failed: invalid JSON" >&2
     rm -f "$tmp"
     FAILED=$((FAILED + 1))
     return 1
@@ -69,6 +79,30 @@ run_json_source "HuggingFace" "$REPORT_DIR/hf_models.json" python3 hf_models_tre
 
 echo ""
 echo "📊 Fetched: $((10 - FAILED))/10 sources"
+
+STATUS_FILE="$REPORT_DIR/source_status.json"
+python3 -c "
+import json, os, sys
+status = {
+    'pipeline_time': '$(date -u -Iseconds)',
+    'total': 10,
+    'failed': $FAILED,
+    'sources': {}
+}
+# check which files exist
+sources = ['seaart.json','pixiv_sfw.json','pixiv_r18.json','danbooru.json','civitai.json','pixai.json','ba_pixiv.json','ba_pixai.json','reddit.json','hf_models.json']
+names = ['SeaArt','Pixiv SFW','Pixiv R18','Danbooru','CivitAI','PixAI','BA Pixiv','BA Pixai','Reddit','HuggingFace']
+for s,n in zip(sources,names):
+    path = os.path.join('$REPORT_DIR', s)
+    ok = os.path.exists(path) and os.path.getsize(path) > 10
+    status['sources'][n] = {
+        'ok': ok,
+        'file': s,
+        'size': os.path.getsize(path) if os.path.exists(path) else 0,
+    }
+with open('$STATUS_FILE', 'w') as f:
+    json.dump(status, f, indent=2)
+"
 
 # ─── BUILD ───
 echo ""

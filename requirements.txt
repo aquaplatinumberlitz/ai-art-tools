@@ -1,0 +1,5 @@
+requests>=2.31
+feedparser>=6.0
+pixivpy3>=3.6
+playwright>=1.40
+Pillow>=10.0

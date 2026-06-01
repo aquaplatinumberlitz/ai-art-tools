@@ -53,4 +53,8 @@ python3 scripts/seaart_trending.py > /tmp/hermes_report/seaart.json
 - `/home/ubuntu/.hermes/cron` — report output directory used by `scripts/build_report_canonical.py`; it must also contain `pixiv_downloader.py`.
 - `/home/ubuntu/.hermes/cron/images` — local image cache directory used by `scripts/build_report_canonical.py`.
 - `~/.hermes/scripts/.pixai_state.json` — saved PixAI Playwright storage state generated after login.
-- `BASE_URL` in `scripts/build_report_canonical.py` — public URL prefix for the generated report and cached images.
+- `HERMES_BASE_URL` — public URL prefix for the generated report and cached images.
+
+## Environment Variables
+
+The pipeline and report builder can be configured with environment variables for data directories, output paths, public URL, source timeouts, and optional API credentials. See `.env.example` for the supported variables and defaults.
