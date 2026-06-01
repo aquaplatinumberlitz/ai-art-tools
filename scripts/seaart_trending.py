@@ -9,17 +9,38 @@ from playwright.sync_api import sync_playwright
 SEAART_POST_URL = "https://seaart.ai/post"
 DEBUG_DIR = Path(os.environ.get("SEAART_DEBUG_DIR", "/tmp/hermes_debug/seaart"))
 
-CARD_SELECTOR = 'a[href*="postDetail"]'
-IMG_SELECTOR = "img"
-TITLE_SELECTOR = '[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]'
-AUTHOR_SELECTOR = '[class*="author"], [class*="Author"], [class*="user"], [class*="User"]'
-DETAIL_URL_REGEX = re.compile(r"/postDetail/([^?\s\"'<]+)")
-
 _LAST_METRICS = {}
 
 
 def log(msg):
     print(f"SeaArt: {msg}", file=sys.stderr)
+
+
+SEAART_SORT = os.environ.get("SEAART_SORT", "hot")
+SEAART_PERIOD = os.environ.get("SEAART_PERIOD", "week")
+
+VALID_SORTS = {"recommended", "hot", "new"}
+VALID_PERIODS = {"day", "week", "month", "all"}
+
+if SEAART_SORT not in VALID_SORTS:
+    log(f"unsupported sort '{SEAART_SORT}', falling back to 'hot'")
+    SEAART_SORT = "hot"
+
+if SEAART_PERIOD not in VALID_PERIODS:
+    log(f"unsupported period '{SEAART_PERIOD}', falling back to 'week'")
+    SEAART_PERIOD = "week"
+
+try:
+    SEAART_POOL_SIZE = int(os.environ.get("SEAART_POOL_SIZE", "20"))
+except (ValueError, TypeError):
+    SEAART_POOL_SIZE = 20
+    log("invalid SEAART_POOL_SIZE, using default 20")
+
+CARD_SELECTOR = 'a[href*="postDetail"]'
+IMG_SELECTOR = "img"
+TITLE_SELECTOR = '[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]'
+AUTHOR_SELECTOR = '[class*="author"], [class*="Author"], [class*="user"], [class*="User"]'
+DETAIL_URL_REGEX = re.compile(r"/postDetail/([^?\s\"'<]+)")
 
 
 def clean_text(value):
@@ -140,6 +161,64 @@ def extract_cards(page, limit):
     )
 
 
+def apply_filters(page):
+    """Try to apply sort and period filters via UI. Returns True if successful."""
+    filters_applied = False
+
+    try:
+        sort_btn = page.query_selector('button:has-text("Recommended"), button:has-text("Hot"), button:has-text("Sort")')
+        if sort_btn:
+            sort_btn.click()
+            page.wait_for_timeout(1000)
+            target = page.query_selector(
+                f'[class*="option"]:has-text("{SEAART_SORT.title()}"), '
+                f'[class*="item"]:has-text("{SEAART_SORT.title()}"), '
+                f'div:has-text("{SEAART_SORT.title()}")'
+            )
+            if target:
+                target.click()
+                page.wait_for_selector(CARD_SELECTOR, timeout=10000)
+                page.wait_for_timeout(1500)
+                filters_applied = True
+                log(f"sort filter applied: {SEAART_SORT}")
+            else:
+                log(f"sort filter option not found: {SEAART_SORT}")
+        else:
+            log("sort filter dropdown not found")
+    except Exception as e:
+        log(f"sort filter click failed: {e}")
+
+    try:
+        period_btn = page.query_selector(
+            f'button:has-text("{SEAART_PERIOD.title()}"), '
+            f'[class*="period"]:has-text("{SEAART_PERIOD.title()}")'
+        )
+        if not period_btn:
+            period_btn = page.query_selector('button:has-text("All"), [class*="time"] button, [class*="period"] button')
+        if period_btn:
+            period_btn.click()
+            page.wait_for_timeout(1000)
+            target = page.query_selector(
+                f'[class*="option"]:has-text("{SEAART_PERIOD.title()}"), '
+                f'div:has-text("{SEAART_PERIOD.title()}"), '
+                f'[class*="item"]:has-text("{SEAART_PERIOD.title()}")'
+            )
+            if target:
+                target.click()
+                page.wait_for_selector(CARD_SELECTOR, timeout=10000)
+                page.wait_for_timeout(1500)
+                filters_applied = True
+                log(f"period filter applied: {SEAART_PERIOD}")
+            else:
+                log(f"period filter option not found: {SEAART_PERIOD}")
+        else:
+            log("period filter dropdown not found")
+    except Exception as e:
+        log(f"period filter click failed: {e}")
+
+    return filters_applied
+
+
 def normalize_item(raw):
     """Normalize a raw card into the core SeaArt item fields."""
     href = raw.get("href") or raw.get("url") or ""
@@ -218,8 +297,12 @@ def dedupe_items(raw_cards, limit):
     return items
 
 
-def metric_counts(raw_cards, items, selector_matches=None):
+def metric_counts(raw_cards, items, selector_matches=None, candidates=None):
     return {
+        "sort": SEAART_SORT,
+        "period": SEAART_PERIOD,
+        "pool_size": SEAART_POOL_SIZE,
+        "candidates": len(items) if candidates is None else candidates,
         "selector_matches": len(raw_cards) if selector_matches is None else selector_matches,
         "items": len(items),
         "images": sum(1 for item in items if item.get("image_url")),
@@ -231,7 +314,7 @@ def metric_counts(raw_cards, items, selector_matches=None):
 
 def log_metrics(metrics):
     print(
-        "[SeaArt] selector_matches={selector_matches} items={items} "
+        "[SeaArt] sort={sort} period={period} pool={pool_size} candidates={candidates} items={items} "
         "images={images} titles={titles} authors={authors} authors_cleaned={authors_cleaned} "
         "runtime={runtime:.1f}s retries={retries}".format(**metrics),
         file=sys.stderr,
@@ -262,8 +345,10 @@ def fetch_trending(count=15):
     global _LAST_METRICS
     started = time.perf_counter()
     retries = 0
+    pool_size = SEAART_POOL_SIZE
     raw_cards = []
     results = []
+    candidates = 0
     error = ""
     selector_matches = 0
 
@@ -290,32 +375,40 @@ def fetch_trending(count=15):
                     error = f"post cards did not appear: {e}"
                     log(error)
 
+                apply_filters(page)
+
                 try:
-                    raw_cards = extract_cards(page, count)
+                    raw_cards = extract_cards(page, pool_size)
                     selector_matches = page.locator(CARD_SELECTOR).count()
-                    results = dedupe_items(raw_cards, count)
+                    results = dedupe_items(raw_cards, pool_size)
+                    candidates = len(results)
 
                     if len(results) < count / 2:
                         for _ in range(2):
                             page.mouse.wheel(0, 900)
                             page.wait_for_timeout(500)
-                            raw_cards = extract_cards(page, count)
+                            raw_cards = extract_cards(page, pool_size)
                             selector_matches = page.locator(CARD_SELECTOR).count()
-                            results = dedupe_items(raw_cards, count)
-                            if len(results) >= count:
+                            results = dedupe_items(raw_cards, pool_size)
+                            candidates = len(results)
+                            if len(results) >= min(count, pool_size):
                                 break
+
+                    results.sort(key=lambda x: (x.get('likes', 0), x.get('views', 0)), reverse=True)
+                    results = results[:count]
                 except Exception as e:
                     error = f"DOM evaluation failed: {e}"
                     log(error)
                     raw_cards = []
                     results = []
+                    candidates = 0
 
                 if results:
                     log(f"found {len(results)} posts")
                     break
 
             metrics = {
-                **metric_counts(raw_cards, results, selector_matches),
+                **metric_counts(raw_cards, results, selector_matches, candidates),
                 "runtime": round(time.perf_counter() - started, 3),
                 "retries": retries,
             }
