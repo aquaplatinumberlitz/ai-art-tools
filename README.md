@@ -58,3 +58,21 @@ python3 scripts/seaart_trending.py > /tmp/hermes_report/seaart.json
 ## Environment Variables
 
 The pipeline and report builder can be configured with environment variables for data directories, output paths, public URL, source timeouts, and optional API credentials. See `.env.example` for the supported variables and defaults.
+
+## SeaArt Notes
+
+SeaArt has no stable public API for community trending posts. The fetcher uses Playwright DOM scraping on `seaart.ai/post`.
+
+- The fetcher attempts to open the visible Filter UI and select Hot/Week when configured.
+- If the filter UI cannot be applied, it falls back to the default feed.
+- A candidate pool (default 20) is fetched and locally sorted by likes (descending), with views as tie-breaker.
+- The final requested count (e.g. 10) is selected from the top-scoring candidates.
+- Stale fallback: if a SeaArt fetch fails, the previous valid JSON is preserved and the report footer marks it as stale.
+
+### SeaArt environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `SEAART_SORT` | `hot` | Sort order: `hot`, `new`, `recommended` |
+| `SEAART_PERIOD` | `week` | Time range: `week`, `month`, `all` |
+| `SEAART_POOL_SIZE` | `20` | Candidate pool size before local sort |

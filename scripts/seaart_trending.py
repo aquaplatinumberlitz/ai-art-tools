@@ -741,8 +741,8 @@ def log_metrics(metrics):
     print(
         "[SeaArt] sort={sort} period={period} filter_sheet_opened={filter_sheet_opened} "
         "sort_applied={sort_applied} period_applied={period_applied} pool={pool_size} "
-        "candidates={candidates} items={items} "
-        "images={images} titles={titles} authors={authors} authors_cleaned={authors_cleaned} "
+        "candidates={candidates} items={items} images={images} titles={titles} authors={authors} "
+        "likes_nonzero={likes_nonzero} top_likes={top_likes} "
         "runtime={runtime:.1f}s retries={retries}".format(**metrics),
         file=sys.stderr,
     )
@@ -895,6 +895,9 @@ def fetch_trending(count=15):
                 "runtime": round(time.perf_counter() - started, 3),
                 "retries": retries,
             }
+            top3 = sorted([x.get('likes', 0) for x in results], reverse=True)[:3]
+            metrics["top_likes"] = top3
+            metrics["likes_nonzero"] = sum(1 for x in results if x.get('likes', 0) > 0)
             _LAST_METRICS = metrics
             log_metrics(metrics)
 

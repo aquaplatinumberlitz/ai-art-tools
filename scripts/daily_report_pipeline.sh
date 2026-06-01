@@ -16,6 +16,8 @@ import json, os, sys
 from datetime import datetime, timezone
 
 label, json_file, tmp_file, duration, success, item_count, error_msg = sys.argv[1:8]
+quality = sys.argv[8] if len(sys.argv) > 8 else None
+warning = sys.argv[9] if len(sys.argv) > 9 else None
 status_file = os.environ["STATUS_FILE"]
 now_dt = datetime.now(timezone.utc)
 now = now_dt.isoformat()
@@ -82,6 +84,8 @@ status["sources"][label] = {
     "items": item_count,
     "duration_sec": duration_sec,
     "error": None if success else error_msg,
+    "quality": quality,
+    "warning": warning,
     "json_path": json_file,
     "updated_at": now,
     "last_success_at": last_success_at,
@@ -120,7 +124,7 @@ run_json_source() {
     if [ "$rc" -eq 0 ]; then
         if item_count=$(python3 -c "import json, sys; print(len(json.load(open(sys.argv[1], encoding='utf-8'))))" "$tmp" 2> "$err"); then
             if mv "$tmp" "$output"; then
-                if ! update_source_status "$label" "$output" "$tmp" "$duration" "1" "$item_count" ""; then
+                if ! update_source_status "$label" "$output" "$tmp" "$duration" "1" "$item_count" "" "hot_week" ""; then
                     echo "⚠️ $label status update failed" >&2
                 fi
                 rm -f "$err"
@@ -143,7 +147,7 @@ run_json_source() {
         echo "⚠️ $label failed: $error_msg" >&2
     fi
 
-    if ! update_source_status "$label" "$output" "$tmp" "$duration" "0" "0" "$error_msg"; then
+    if ! update_source_status "$label" "$output" "$tmp" "$duration" "0" "0" "$error_msg" "default_feed" "filter not applied; using default feed"; then
         echo "⚠️ $label status update failed" >&2
     fi
     rm -f "$tmp"

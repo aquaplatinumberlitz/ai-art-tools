@@ -705,6 +705,8 @@ def _build_status_html():
         except Exception:
             count = 0
         total_items += count
+        warning = str(source.get("warning") or "").strip()
+        warning_text = f' · warning: {warning}' if warning else ''
 
         if ok and not stale:
             fresh_count += 1
@@ -720,15 +722,15 @@ def _build_status_html():
             stale_count += 1
             label = f'{safe_name} stale · {count}'
             error = str(source.get("error", "unknown"))
-            title = f'STALE fallback · {count} old items · last success {fmt_time(source.get("last_success_at"))} · error: {error}'
-            aria = f'last success {fmt_time(source.get("last_success_at"))} · error: {error}'
+            title = f'STALE fallback · {count} old items · last success {fmt_time(source.get("last_success_at"))} · error: {error}{warning_text}'
+            aria = f'last success {fmt_time(source.get("last_success_at"))} · error: {error}{warning_text}'
             chip_cls = 'stale'
         else:
             failed_count += 1
             label = f'{safe_name} failed'
             error = str(source.get("error", "unknown"))
-            title = f'FAILED · no usable JSON · error: {error}'
-            aria = f'no usable JSON · error: {error}'
+            title = f'FAILED · no usable JSON · error: {error}{warning_text}'
+            aria = f'no usable JSON · error: {error}{warning_text}'
             chip_cls = 'failed'
 
         chips.append(
