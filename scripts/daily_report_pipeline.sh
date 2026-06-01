@@ -7,6 +7,94 @@ cd "${HERMES_SCRIPT_DIR:-/home/ubuntu/.hermes/scripts}"
 
 echo "📡 Daily Report Pipeline — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 FAILED=0
+STATUS_FILE="$REPORT_DIR/source_status.json"
+export STATUS_FILE
+
+update_source_status() {
+    python3 -c '
+import json, os, sys
+from datetime import datetime, timezone
+
+label, json_file, tmp_file, duration, success, item_count, error_msg = sys.argv[1:8]
+status_file = os.environ["STATUS_FILE"]
+now_dt = datetime.now(timezone.utc)
+now = now_dt.isoformat()
+
+try:
+    duration_sec = float(duration)
+except Exception:
+    duration_sec = 0.0
+success = success == "1"
+try:
+    item_count = int(item_count)
+except Exception:
+    item_count = 0
+error_msg = (error_msg or "").strip() or None
+if error_msg and len(error_msg) > 240:
+    error_msg = error_msg[:237] + "..."
+
+status = {"generated_at": now, "sources": {}}
+known_sources = {
+    "SeaArt", "Pixiv SFW", "Pixiv R18", "Danbooru", "CivitAI", "PixAI",
+    "BA Pixiv", "BA Pixai", "Reddit", "HuggingFace",
+}
+if os.path.exists(status_file):
+    try:
+        with open(status_file, "r", encoding="utf-8") as f:
+            prev = json.load(f)
+        if isinstance(prev, dict):
+            status["sources"] = prev.get("sources", {}) if isinstance(prev.get("sources"), dict) else {}
+            status["sources"] = {k: v for k, v in status["sources"].items() if k in known_sources}
+    except Exception:
+        pass
+
+prev_entry = status["sources"].get(label, {})
+last_success_at = prev_entry.get("last_success_at") if isinstance(prev_entry, dict) else None
+fallback_exists = os.path.exists(json_file) and os.path.getsize(json_file) > 10
+stale = (not success) and fallback_exists
+missing = (not success) and (not fallback_exists)
+
+if success:
+    last_success_at = now
+elif stale:
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            item_count = len(json.load(f))
+    except Exception:
+        item_count = 0
+        stale = False
+        missing = True
+
+age_sec = 0
+if last_success_at:
+    try:
+        last_dt = datetime.fromisoformat(last_success_at.replace("Z", "+00:00"))
+        age_sec = max(0, int((now_dt - last_dt).total_seconds()))
+    except Exception:
+        age_sec = 0
+
+status["generated_at"] = now
+status["sources"][label] = {
+    "ok": success,
+    "stale": stale,
+    "used_fallback": stale,
+    "missing": missing,
+    "items": item_count,
+    "duration_sec": duration_sec,
+    "error": None if success else error_msg,
+    "json_path": json_file,
+    "updated_at": now,
+    "last_success_at": last_success_at,
+    "age_sec": age_sec,
+}
+
+tmp_status = status_file + ".tmp"
+with open(tmp_status, "w", encoding="utf-8") as f:
+    json.dump(status, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+os.replace(tmp_status, status_file)
+' "$@"
+}
 
 run_json_source() {
     local label="$1"
@@ -14,25 +102,52 @@ run_json_source() {
     shift 2
 
     local tmp="${output}.tmp.$$"
+    local err="${output}.err.$$"
     rm -f "$tmp"
+    rm -f "$err"
 
     local source_timeout="${HERMES_SOURCE_TIMEOUT:-120}"
-    if timeout "$source_timeout" "$@" > "$tmp"; then
-        :
+    local start=$SECONDS
+    local rc=0
+    local duration=0
+    local item_count=0
+    local error_msg=""
+
+    timeout "$source_timeout" "$@" > "$tmp" 2> "$err"
+    rc=$?
+    duration=$((SECONDS - start))
+
+    if [ "$rc" -eq 0 ]; then
+        if item_count=$(python3 -c "import json, sys; print(len(json.load(open(sys.argv[1], encoding='utf-8'))))" "$tmp" 2> "$err"); then
+            if mv "$tmp" "$output"; then
+                if ! update_source_status "$label" "$output" "$tmp" "$duration" "1" "$item_count" ""; then
+                    echo "⚠️ $label status update failed" >&2
+                fi
+                rm -f "$err"
+                return 0
+            fi
+            error_msg="could not replace JSON output"
+        else
+            error_msg="invalid JSON: $(tr '\n' ' ' < "$err" | cut -c1-180)"
+        fi
+    elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+        error_msg="timeout after ${source_timeout}s"
     else
-        echo "⚠️ $label failed (timeout=${source_timeout}s)" >&2
-        rm -f "$tmp"
-        FAILED=$((FAILED + 1))
-        return 1
+        error_msg="$(tr '\n' ' ' < "$err" | cut -c1-180)"
+        [ -n "$error_msg" ] || error_msg="exit code $rc"
     fi
 
-    if python3 -c "import json, sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$tmp"; then
-        mv "$tmp" "$output"
-        return 0
+    if [ -s "$output" ] && [ "$(wc -c < "$output")" -gt 10 ]; then
+        echo "⚠️ $label failed: $error_msg; using stale fallback" >&2
+    else
+        echo "⚠️ $label failed: $error_msg" >&2
     fi
 
-    echo "⚠️ $label failed: invalid JSON" >&2
+    if ! update_source_status "$label" "$output" "$tmp" "$duration" "0" "0" "$error_msg"; then
+        echo "⚠️ $label status update failed" >&2
+    fi
     rm -f "$tmp"
+    rm -f "$err"
     FAILED=$((FAILED + 1))
     return 1
 }
@@ -67,7 +182,7 @@ run_json_source "BA Pixiv" "$REPORT_DIR/ba_pixiv.json" python3 pixiv_search_ba.p
 
 # ─── 8. Blue Archive PixAI ───
 echo "[8/10] Blue Archive PixAI..."
-run_json_source "BA PixAI" "$REPORT_DIR/ba_pixai.json" python3 pixai_ba.py 5
+run_json_source "BA Pixai" "$REPORT_DIR/ba_pixai.json" python3 pixai_ba.py 5
 
 # ─── 9. Reddit ───
 echo "[9/10] Reddit RSS..."
@@ -79,30 +194,6 @@ run_json_source "HuggingFace" "$REPORT_DIR/hf_models.json" python3 hf_models_tre
 
 echo ""
 echo "📊 Fetched: $((10 - FAILED))/10 sources"
-
-STATUS_FILE="$REPORT_DIR/source_status.json"
-python3 -c "
-import json, os, sys
-status = {
-    'pipeline_time': '$(date -u -Iseconds)',
-    'total': 10,
-    'failed': $FAILED,
-    'sources': {}
-}
-# check which files exist
-sources = ['seaart.json','pixiv_sfw.json','pixiv_r18.json','danbooru.json','civitai.json','pixai.json','ba_pixiv.json','ba_pixai.json','reddit.json','hf_models.json']
-names = ['SeaArt','Pixiv SFW','Pixiv R18','Danbooru','CivitAI','PixAI','BA Pixiv','BA Pixai','Reddit','HuggingFace']
-for s,n in zip(sources,names):
-    path = os.path.join('$REPORT_DIR', s)
-    ok = os.path.exists(path) and os.path.getsize(path) > 10
-    status['sources'][n] = {
-        'ok': ok,
-        'file': s,
-        'size': os.path.getsize(path) if os.path.exists(path) else 0,
-    }
-with open('$STATUS_FILE', 'w') as f:
-    json.dump(status, f, indent=2)
-"
 
 # ─── BUILD ───
 echo ""

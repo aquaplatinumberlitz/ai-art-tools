@@ -650,17 +650,72 @@ def _relative_time(iso_str):
 def _build_status_html():
     status_path = os.path.join(DATA_DIR, 'source_status.json')
     try:
-        with open(status_path) as f:
+        with open(status_path, encoding='utf-8') as f:
             st = json.load(f)
     except Exception:
         return ''
-    items = ''.join(
-        f'<span style="display:inline-flex;align-items:center;gap:4px;margin:0 6px">'
-        f'<span style="color:{"#4caf50" if v["ok"] else "#e53935"};font-size:10px">{"●" if v["ok"] else "○"}</span>'
-        f'<span style="font-size:11px">{k}</span></span>'
-        for k, v in st.get('sources', {}).items()
+
+    def fmt_time(value):
+        if not value:
+            return 'unknown'
+        return str(value).replace('T', ' ').replace('+00:00', ' UTC')
+
+    def fmt_items(value):
+        try:
+            return int(value)
+        except Exception:
+            return 0
+
+    items = []
+    sources = st.get('sources', {})
+    if not isinstance(sources, dict):
+        return ''
+
+    for name, source in sources.items():
+        if not isinstance(source, dict):
+            continue
+        safe_name = escape(str(name))
+        ok = bool(source.get('ok'))
+        stale = bool(source.get('stale'))
+        count = fmt_items(source.get('items'))
+        duration = source.get('duration_sec') or 0
+        try:
+            duration = float(duration)
+        except Exception:
+            duration = 0.0
+        error = escape(str(source.get('error') or 'unknown'))
+
+        if ok and not stale:
+            color = '#16a34a'
+            label = f'{safe_name} · {count} items'
+            title = f'OK · {count} items · {duration:.1f}s · updated {fmt_time(source.get("updated_at"))}'
+            aria = f'{name}: OK, {count} items'
+        elif (not ok) and stale:
+            color = '#f59e0b'
+            label = f'{safe_name} · stale · {count} items'
+            title = f'STALE fallback · {count} old items · last success {fmt_time(source.get("last_success_at"))} · error: {source.get("error") or "unknown"}'
+            aria = f'{name}: stale fallback, {count} old items'
+        else:
+            color = '#dc2626'
+            label = f'{safe_name} · failed'
+            title = f'FAILED · no usable JSON · error: {source.get("error") or "unknown"}'
+            aria = f'{name}: failed, no usable JSON'
+
+        items.append(
+            f'<span title="{escape(title)}" aria-label="{escape(aria)}" '
+            f'style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px;white-space:nowrap">'
+            f'<span aria-hidden="true" style="color:{color};font-size:10px;line-height:1">●</span>'
+            f'<span style="font-size:11px;line-height:1.4;color:#6b7280">{label}</span></span>'
+        )
+
+    if not items:
+        return ''
+    return (
+        '<div role="status" aria-label="Source fetch status" '
+        'style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px;'
+        'max-width:100%;padding:8px 0;overflow-wrap:anywhere">'
+        f'{"".join(items)}</div>'
     )
-    return f'<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:8px 0">{items}</div>'
 
 def build_demo_gallery():
     pixiv_sfw = load_json('pixiv_sfw.json')
