@@ -9,12 +9,78 @@ Output: JSON array of formatted items to stdout.
 
 Defaults to 10 items, max 30.
 """
-import json, sys, time
+import json, os, sys, time
 import requests
 
 API_URL = "https://civitai.com/api/v1/images"
 TIMEOUT = 30
 MAX_RETRIES = 3
+HYDRATE_MODE = os.environ.get("CIVITAI_HYDRATE_STATS", "auto")
+MAX_HYDRATE = int(os.environ.get("CIVITAI_MAX_HYDRATE", "20"))
+
+
+def reaction_score(stats):
+    if not isinstance(stats, dict):
+        return 0
+    return (stats.get("likeCount") or 0) + (stats.get("heartCount") or 0)
+
+
+def should_hydrate_stats(items, mode):
+    if mode == "always":
+        return True
+    if mode == "never":
+        return False
+    # auto: hydrate only if ALL selected items have 0 reaction score
+    if not items:
+        return False
+    nonzero = sum(1 for item in items if reaction_score(item.get("stats", {})) > 0)
+    return nonzero == 0
+
+
+def hydrate_stats(image_id):
+    try:
+        headers = {}
+        token = os.environ.get("CIVITAI_API_TOKEN", "")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        r = requests.get(
+            API_URL,
+            params={"imageId": image_id, "browsingLevel": 31},
+            headers=headers,
+            timeout=15,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            items = data.get("items", [])
+            if items and isinstance(items[0], dict):
+                return items[0].get("stats", {})
+        elif r.status_code == 429:
+            retry_after = r.headers.get("Retry-After")
+            wait = int(retry_after) if retry_after and retry_after.isdigit() else 5
+            print(f"⚠️ CivitAI hydrate 429, waiting {wait}s", file=sys.stderr)
+            time.sleep(wait)
+            # one retry
+            r2 = requests.get(
+                API_URL,
+                params={"imageId": image_id, "browsingLevel": 31},
+                headers=headers,
+                timeout=15,
+            )
+            if r2.status_code == 200:
+                data = r2.json()
+                items = data.get("items", [])
+                if items and isinstance(items[0], dict):
+                    return items[0].get("stats", {})
+    except Exception as e:
+        print(f"⚠️ Hydrate failed for {image_id}: {e}", file=sys.stderr)
+    return {}
+
+
+def merge_hydrated_stats(item, hydrated_stats):
+    merged = dict(item)
+    if hydrated_stats:
+        merged["stats"] = hydrated_stats
+    return merged
 
 
 def fetch_images(limit=10):
@@ -122,6 +188,30 @@ def main():
             formatted.append(fmt)
             if len(formatted) >= count:
                 break
+
+    # Conditional hydration
+    mode = HYDRATE_MODE
+    nonzero_before = sum(1 for item in formatted if reaction_score(item.get("stats", {})) > 0)
+
+    if should_hydrate_stats(formatted, mode):
+        max_h = min(MAX_HYDRATE, len(formatted))
+        hydrated_count = 0
+        for i in range(max_h):
+            image_id = formatted[i].get("id")
+            if not image_id:
+                continue
+            hs = hydrate_stats(image_id)
+            if hs:
+                formatted[i] = merge_hydrated_stats(formatted[i], hs)
+                hydrated_count += 1
+
+        nonzero_after = sum(1 for item in formatted if reaction_score(item.get("stats", {})) > 0)
+        print(f"[CivitAI] stats_source=hydrate selected={len(formatted)} nonzero_before={nonzero_before} nonzero_after={nonzero_after} hydrated={hydrated_count}", file=sys.stderr)
+
+        if nonzero_after == 0:
+            print(f"[CivitAI] API stats unavailable: selected={len(formatted)} nonzero_before={nonzero_before} nonzero_after={nonzero_after} hydrated={hydrated_count}", file=sys.stderr)
+    else:
+        print(f"[CivitAI] stats_source=list selected={len(formatted)} nonzero={nonzero_before} hydrated=0", file=sys.stderr)
 
     print(json.dumps(formatted, ensure_ascii=False, indent=2))
 
