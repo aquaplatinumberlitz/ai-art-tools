@@ -91,8 +91,11 @@ def format_item(item):
         'url': url,
         'username': item.get('username', '?'),
         'stats': {
+            'cryCount': stats.get('cryCount', 0),
+            'laughCount': stats.get('laughCount', 0),
             'likeCount': stats.get('likeCount', 0),
             'heartCount': stats.get('heartCount', 0),
+            'commentCount': stats.get('commentCount', 0),
         },
         'nsfw': item.get('nsfw', False),
         'baseModel': item.get('baseModel', ''),

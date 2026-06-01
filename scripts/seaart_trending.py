@@ -61,6 +61,28 @@ def parse_int(value):
         return 0
 
 
+def split_author_metrics(author_text):
+    """Split author name from trailing metric numbers."""
+    author_text = str(author_text or "")
+    parts = author_text.strip().split()
+    if len(parts) < 2:
+        return author_text, []
+
+    metrics = []
+    i = len(parts) - 1
+    while i >= 0 and parts[i].isdigit():
+        metrics.append(int(parts[i]))
+        i -= 1
+
+    if not metrics:
+        return author_text, []
+
+    clean_author = " ".join(parts[:i + 1])
+    metrics.reverse()
+
+    return clean_author, metrics
+
+
 def cover_to_file_url(cover_url):
     """Convert cover URL to full-resolution file URL."""
     m = re.search(
@@ -140,14 +162,22 @@ def normalize_item(raw):
     if not title:
         title = derive_title(raw.get("text") or "")
 
+    author, author_metrics = split_author_metrics(clean_text(raw.get("author") or ""))
+    likes = parse_int(raw.get("likes"))
+    views = parse_int(raw.get("views"))
+    if author_metrics:
+        likes = author_metrics[0]
+        if len(author_metrics) >= 2:
+            views = author_metrics[1]
+
     return {
         "id": post_id,
         "title": title,
-        "author": clean_text(raw.get("author") or ""),
+        "author": author,
         "image_url": image_url,
         "url": f"https://seaart.ai/postDetail/{post_id}",
-        "likes": parse_int(raw.get("likes")),
-        "views": parse_int(raw.get("views")),
+        "likes": likes,
+        "views": views,
         "collections": parse_int(raw.get("collections")),
         "created_at": raw.get("created_at") or 0,
     }
@@ -195,13 +225,14 @@ def metric_counts(raw_cards, items, selector_matches=None):
         "images": sum(1 for item in items if item.get("image_url")),
         "titles": sum(1 for item in items if item.get("title")),
         "authors": sum(1 for item in items if item.get("author")),
+        "authors_cleaned": sum(1 for raw in raw_cards if split_author_metrics(raw.get("author") or "")[1]),
     }
 
 
 def log_metrics(metrics):
     print(
         "[SeaArt] selector_matches={selector_matches} items={items} "
-        "images={images} titles={titles} authors={authors} "
+        "images={images} titles={titles} authors={authors} authors_cleaned={authors_cleaned} "
         "runtime={runtime:.1f}s retries={retries}".format(**metrics),
         file=sys.stderr,
     )

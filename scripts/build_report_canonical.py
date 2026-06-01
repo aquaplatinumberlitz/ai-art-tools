@@ -229,7 +229,10 @@ def _d_score(src, item):
     if src == 'civitai':
         st = item.get('stats') or {}
         if not isinstance(st, dict): st = {}
-        return (st.get('likeCount') or 0) + (st.get('heartCount') or 0)
+        score = (st.get('likeCount') or 0) + (st.get('heartCount') or 0)
+        if score:
+            return score
+        return sum((st.get(k) or 0) for k in ('likeCount', 'heartCount', 'laughCount', 'cryCount', 'commentCount'))
     if src == 'danbooru':
         return item.get('score', 0) or 0
     if src == 'ba_pixiv':
