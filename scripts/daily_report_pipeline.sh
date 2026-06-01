@@ -17,7 +17,7 @@ run_json_source() {
     rm -f "$tmp"
 
     local source_timeout="${HERMES_SOURCE_TIMEOUT:-120}"
-    if timeout "$source_timeout" "$@" > "$tmp" 2>&1; then
+    if timeout "$source_timeout" "$@" > "$tmp"; then
         :
     else
         echo "⚠️ $label failed (timeout=${source_timeout}s)" >&2
