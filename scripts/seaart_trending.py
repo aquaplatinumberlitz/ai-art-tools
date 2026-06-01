@@ -43,6 +43,17 @@ AUTHOR_SELECTOR = '[class*="author"], [class*="Author"], [class*="user"], [class
 DETAIL_URL_REGEX = re.compile(r"/postDetail/([^?\s\"'<]+)")
 
 
+def save_debug_screenshot(page, name):
+    """Save a named screenshot when SEAART_SAVE_DEBUG is enabled."""
+    if os.environ.get("SEAART_SAVE_DEBUG") != "1":
+        return
+    try:
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(DEBUG_DIR / f"seaart-{name}.png"), full_page=True)
+    except Exception as e:
+        log(f"debug screenshot failed ({name}): {e}")
+
+
 def clean_text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
@@ -161,62 +172,219 @@ def extract_cards(page, limit):
     )
 
 
-def apply_filters(page):
-    """Try to apply sort and period filters via UI. Returns True if successful."""
-    filters_applied = False
+def matching_option(page, labels):
+    """Find a visible option-like element whose text contains one of the labels."""
+    selectors = []
+    for label in labels:
+        selectors.extend([
+            f'text="{label}"',
+            f'[class*="option" i]:has-text("{label}")',
+            f'[class*="item" i]:has-text("{label}")',
+            f'button:has-text("{label}")',
+            f'div:has-text("{label}")',
+            f'span:has-text("{label}")',
+        ])
 
-    try:
-        sort_btn = page.query_selector('button:has-text("Recommended"), button:has-text("Hot"), button:has-text("Sort")')
-        if sort_btn:
-            sort_btn.click()
-            page.wait_for_timeout(1000)
-            target = page.query_selector(
-                f'[class*="option"]:has-text("{SEAART_SORT.title()}"), '
-                f'[class*="item"]:has-text("{SEAART_SORT.title()}"), '
-                f'div:has-text("{SEAART_SORT.title()}")'
-            )
-            if target:
-                target.click()
-                page.wait_for_selector(CARD_SELECTOR, timeout=10000)
-                page.wait_for_timeout(1500)
-                filters_applied = True
-                log(f"sort filter applied: {SEAART_SORT}")
-            else:
-                log(f"sort filter option not found: {SEAART_SORT}")
-        else:
-            log("sort filter dropdown not found")
-    except Exception as e:
-        log(f"sort filter click failed: {e}")
+    for selector in selectors:
+        try:
+            locator = page.locator(selector)
+            for i in range(min(locator.count(), 25)):
+                option = locator.nth(i)
+                if option.is_visible():
+                    return option
+        except Exception:
+            continue
+    return None
 
+
+def option_labels_for_period(period):
+    if period == "day":
+        log("period=day not available, falling back to week")
+        period = "week"
+    if period == "month":
+        return period, ["Month", "Months", "Month(s)"]
+    if period == "all":
+        return period, ["All"]
+    return period, [period.title()]
+
+
+def clickable_filter_button(handle):
+    """Return the nearest button handle for a matched filter icon/element."""
     try:
-        period_btn = page.query_selector(
-            f'button:has-text("{SEAART_PERIOD.title()}"), '
-            f'[class*="period"]:has-text("{SEAART_PERIOD.title()}")'
+        if handle.evaluate("el => el.tagName && el.tagName.toLowerCase() === 'button'"):
+            return handle
+        button = handle.evaluate_handle("el => el.closest && el.closest('button')")
+        if button:
+            element = button.as_element()
+            if element:
+                return element
+    except Exception:
+        pass
+    return handle
+
+
+def filter_sheet_visible(page):
+    """Best-effort check that a filter/drawer UI is now visible."""
+    try:
+        sheet = page.locator(
+            '[role="dialog"], [class*="drawer" i], [class*="sheet" i], '
+            '[class*="popup" i], [class*="modal" i]'
         )
-        if not period_btn:
-            period_btn = page.query_selector('button:has-text("All"), [class*="time"] button, [class*="period"] button')
-        if period_btn:
-            period_btn.click()
-            page.wait_for_timeout(1000)
-            target = page.query_selector(
-                f'[class*="option"]:has-text("{SEAART_PERIOD.title()}"), '
-                f'div:has-text("{SEAART_PERIOD.title()}"), '
-                f'[class*="item"]:has-text("{SEAART_PERIOD.title()}")'
-            )
-            if target:
-                target.click()
-                page.wait_for_selector(CARD_SELECTOR, timeout=10000)
-                page.wait_for_timeout(1500)
-                filters_applied = True
-                log(f"period filter applied: {SEAART_PERIOD}")
-            else:
-                log(f"period filter option not found: {SEAART_PERIOD}")
-        else:
-            log("period filter dropdown not found")
-    except Exception as e:
-        log(f"period filter click failed: {e}")
+        for i in range(min(sheet.count(), 10)):
+            if sheet.nth(i).is_visible():
+                return True
+    except Exception:
+        pass
 
-    return filters_applied
+    try:
+        has_sort = any(
+            page.get_by_text(label, exact=False).first().is_visible()
+            for label in ["Hot", "New", "Recommended"]
+        )
+        has_period = any(
+            page.get_by_text(label, exact=False).first().is_visible()
+            for label in ["Week", "Month", "All"]
+        )
+        return has_sort and has_period
+    except Exception:
+        return False
+
+
+def try_click_filter_icon(page, selectors, mobile=False):
+    for sel in selectors:
+        try:
+            for handle in page.query_selector_all(sel)[:8]:
+                btn = clickable_filter_button(handle)
+                box = btn.bounding_box()
+                if not box:
+                    continue
+                if box["width"] >= 60 or box["height"] >= 60:
+                    continue
+                if not mobile and box["y"] > 260:
+                    continue
+
+                original_url = page.url
+                btn.click()
+                page.wait_for_timeout(1500)
+
+                if "/postDetail/" in page.url or page.url != original_url:
+                    log(f"filter candidate navigated away via selector: {sel}")
+                    try:
+                        page.go_back(wait_until="domcontentloaded", timeout=15000)
+                        page.wait_for_selector(CARD_SELECTOR, timeout=10000)
+                    except Exception as e:
+                        log(f"returning after bad filter candidate failed: {e}")
+                    continue
+
+                if filter_sheet_visible(page):
+                    prefix = "filter sheet opened (mobile)" if mobile else "filter sheet opened"
+                    log(f"{prefix} via selector: {sel}")
+                    return True
+
+                log(f"filter candidate did not expose sheet via selector: {sel}")
+        except Exception as e:
+            log(f"filter selector failed sel='{sel}' error='{e}'")
+    return False
+
+
+def apply_filters(page):
+    """Try to open filter sheet and select sort/period options. Returns dict with status."""
+    result = {
+        "filter_sheet_opened": False,
+        "sort_applied": False,
+        "period_applied": False,
+        "sort_value": None,
+        "period_value": None,
+    }
+
+    filter_selectors = [
+        'button svg[viewBox*="filter"], button svg[viewBox*="Filter"]',
+        'button[aria-label*="filter" i], button[aria-label*="Filter" i]',
+        'button:has(svg[viewBox*="filter"]), button:has(svg[viewBox*="Filter"])',
+        '[class*="filter" i] button, button[class*="filter" i]',
+        'button:has(svg)',
+        'section button:last-of-type',
+    ]
+
+    filter_clicked = False
+    viewport_changed = False
+
+    save_debug_screenshot(page, "filter-before-open")
+
+    try:
+        filter_clicked = try_click_filter_icon(page, filter_selectors)
+        if filter_clicked:
+            result["filter_sheet_opened"] = True
+            save_debug_screenshot(page, "filter-sheet-open")
+    except Exception as e:
+        log(f"filter icon click attempt failed: {e}")
+
+    if not filter_clicked:
+        try:
+            log("trying mobile viewport for filter access")
+            page.set_viewport_size({"width": 430, "height": 932})
+            viewport_changed = True
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_selector(CARD_SELECTOR, timeout=15000)
+            page.wait_for_timeout(2000)
+            save_debug_screenshot(page, "filter-mobile-before-open")
+
+            filter_clicked = try_click_filter_icon(page, filter_selectors, mobile=True)
+            if filter_clicked:
+                result["filter_sheet_opened"] = True
+                save_debug_screenshot(page, "filter-mobile-sheet-open")
+        except Exception as e:
+            log(f"mobile viewport filter attempt failed: {e}")
+
+    if filter_clicked:
+        try:
+            sort_target = SEAART_SORT.title()
+            option = matching_option(page, [sort_target])
+            if option:
+                option.click()
+                page.wait_for_timeout(1000)
+                result["sort_applied"] = True
+                result["sort_value"] = SEAART_SORT
+                log(f"sort option selected: {SEAART_SORT}")
+                save_debug_screenshot(page, "filter-after-sort")
+            else:
+                log(f"sort option not found in filter sheet: {SEAART_SORT}")
+        except Exception as e:
+            log(f"sort selection failed: {e}")
+
+        try:
+            period_value, period_labels = option_labels_for_period(SEAART_PERIOD)
+            option = matching_option(page, period_labels)
+            if option:
+                option.click()
+                page.wait_for_timeout(1000)
+                result["period_applied"] = True
+                result["period_value"] = period_value
+                log(f"period option selected: {period_value}")
+                save_debug_screenshot(page, "filter-after-period")
+            else:
+                log(f"period option not found in filter sheet: {period_value}")
+        except Exception as e:
+            log(f"period selection failed: {e}")
+
+        try:
+            page.wait_for_selector(CARD_SELECTOR, timeout=10000)
+            page.wait_for_timeout(1500)
+            log("cards available after filter step")
+        except Exception as e:
+            log(f"cards did not reload after filter step: {e}")
+    else:
+        log("filter_sheet_opened=false fallback_default_feed=true reason='filter button not found'")
+
+    if viewport_changed:
+        try:
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.wait_for_timeout(500)
+            log("restored desktop viewport after filter attempt")
+        except Exception as e:
+            log(f"desktop viewport restore failed: {e}")
+
+    return result
 
 
 def normalize_item(raw):
@@ -297,10 +465,14 @@ def dedupe_items(raw_cards, limit):
     return items
 
 
-def metric_counts(raw_cards, items, selector_matches=None, candidates=None):
+def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filter_status=None):
+    filter_status = filter_status or {}
     return {
         "sort": SEAART_SORT,
         "period": SEAART_PERIOD,
+        "filter_sheet_opened": filter_status.get("filter_sheet_opened", False),
+        "sort_applied": filter_status.get("sort_applied", False),
+        "period_applied": filter_status.get("period_applied", False),
         "pool_size": SEAART_POOL_SIZE,
         "candidates": len(items) if candidates is None else candidates,
         "selector_matches": len(raw_cards) if selector_matches is None else selector_matches,
@@ -314,14 +486,16 @@ def metric_counts(raw_cards, items, selector_matches=None, candidates=None):
 
 def log_metrics(metrics):
     print(
-        "[SeaArt] sort={sort} period={period} pool={pool_size} candidates={candidates} items={items} "
+        "[SeaArt] sort={sort} period={period} filter_sheet_opened={filter_sheet_opened} "
+        "sort_applied={sort_applied} period_applied={period_applied} pool={pool_size} "
+        "candidates={candidates} items={items} "
         "images={images} titles={titles} authors={authors} authors_cleaned={authors_cleaned} "
         "runtime={runtime:.1f}s retries={retries}".format(**metrics),
         file=sys.stderr,
     )
 
 
-def save_debug_artifacts(results, html, screenshot, error):
+def save_debug_artifacts(results, html, screenshot, error, filter_status=None):
     """Save debug artifacts when requested or when extraction fails."""
     DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     if html:
@@ -329,7 +503,11 @@ def save_debug_artifacts(results, html, screenshot, error):
     if screenshot:
         (DEBUG_DIR / "seaart-post.png").write_bytes(screenshot)
     (DEBUG_DIR / "seaart-metrics.json").write_text(
-        json.dumps({**_LAST_METRICS, "error": error or ""}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {**_LAST_METRICS, "filter_status": filter_status or {}, "error": error or ""},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     (DEBUG_DIR / "seaart-raw-cards.json").write_text(
@@ -351,6 +529,13 @@ def fetch_trending(count=15):
     candidates = 0
     error = ""
     selector_matches = 0
+    filter_status = {
+        "filter_sheet_opened": False,
+        "sort_applied": False,
+        "period_applied": False,
+        "sort_value": None,
+        "period_value": None,
+    }
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -375,7 +560,7 @@ def fetch_trending(count=15):
                     error = f"post cards did not appear: {e}"
                     log(error)
 
-                apply_filters(page)
+                filter_status = apply_filters(page)
 
                 try:
                     raw_cards = extract_cards(page, pool_size)
@@ -408,7 +593,7 @@ def fetch_trending(count=15):
                     break
 
             metrics = {
-                **metric_counts(raw_cards, results, selector_matches, candidates),
+                **metric_counts(raw_cards, results, selector_matches, candidates, filter_status),
                 "runtime": round(time.perf_counter() - started, 3),
                 "retries": retries,
             }
@@ -424,7 +609,13 @@ def fetch_trending(count=15):
                     screenshot = page.screenshot(full_page=True)
                 except Exception:
                     screenshot = b""
-                save_debug_artifacts(raw_cards, html, screenshot, error or ("0 usable results" if not results else ""))
+                save_debug_artifacts(
+                    raw_cards,
+                    html,
+                    screenshot,
+                    error or ("0 usable results" if not results else ""),
+                    filter_status,
+                )
 
             return results
 
