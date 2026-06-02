@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from playwright.sync_api import sync_playwright
 
 
-SEAART_POST_URL = "https://seaart.ai/post"
+SEAART_POST_URL = "https://www.seaart.ai/post?sort=hot&period=week"
 DEBUG_DIR = Path(os.environ.get("SEAART_DEBUG_DIR", "/tmp/hermes_debug/seaart"))
 
 _LAST_METRICS = {}
@@ -191,8 +191,20 @@ def parse_int(value):
 def split_author_metrics(author_text):
     """Split author name from trailing metric numbers."""
     author_text = str(author_text or "")
+    metric_re = r"(\d+(?:[.,]\d+)?[KMBkmb]?)"
+
     parts = author_text.strip().split()
     if len(parts) < 2:
+        # Single token: try compact regex for "Oosti1.5K517" pattern
+        match = re.match(
+            rf"^(?P<author>.*?)(?P<first>{metric_re})\s*(?P<second>{metric_re})$",
+            author_text.strip(),
+        )
+        if match and match.group("author").strip():
+            return match.group("author").strip(), [
+                parse_int(match.group("first")),
+                parse_int(match.group("second")),
+            ]
         return author_text, []
 
     metrics = []
@@ -201,8 +213,22 @@ def split_author_metrics(author_text):
         metrics.append(int(parts[i]))
         i -= 1
 
-    if not metrics:
-        return author_text, []
+    if not metrics or re.search(r"[KMBkmb]", author_text):
+        # Fallback: use regex for compact K/M values that .isdigit() can't parse
+        # Examples: "Oosti1.5K517" (no space), "Oosti 1.5K 517" (space)
+        match = re.match(
+            rf"^(?P<author>.*?)(?P<first>{metric_re})\s*(?P<second>{metric_re})$",
+            author_text,
+        )
+        if match:
+            clean_author = match.group("author").strip()
+            if clean_author:
+                return clean_author, [
+                    parse_int(match.group("first")),
+                    parse_int(match.group("second")),
+                ]
+        if not metrics:
+            return author_text, []
 
     clean_author = " ".join(parts[:i + 1])
     metrics.reverse()
@@ -294,10 +320,17 @@ def extract_cards(page, limit):
             };
 
             const findFeedBoundaryY = () => {
+                const toolbarEl = document.querySelector('.my-filter-form-box .filter-form-box, .filter-form-box');
+                if (toolbarEl) {
+                    const tb = toolbarEl.getBoundingClientRect();
+                    return Math.round(tb.bottom + window.scrollY);
+                }
+
                 const toolbarContainers = Array.from(document.querySelectorAll('body *'))
                     .filter((el) => {
                         if (!visible(el)) return false;
                         if (el.closest('footer')) return false;
+                        if (el.closest('.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]')) return false;
                         const box = el.getBoundingClientRect();
                         const className = String(el.className || '');
                         const text = normalizeText(el);
@@ -325,6 +358,7 @@ def extract_cards(page, limit):
                     .filter((el) => {
                         if (!visible(el)) return false;
                         if (el.closest('footer')) return false;
+                        if (el.closest('.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]')) return false;
                         const text = normalizeText(el);
                         const box = el.getBoundingClientRect();
                         return /^Filter$/i.test(text) &&
@@ -350,6 +384,7 @@ def extract_cards(page, limit):
                     .filter((el) => {
                         if (!visible(el)) return false;
                         if (el.closest('footer')) return false;
+                        if (el.closest('.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]')) return false;
                         if (el.closest('a[href*="postDetail"]')) return false;
                         const text = normalizeText(el);
                         const box = el.getBoundingClientRect();
@@ -421,6 +456,8 @@ def extract_cards(page, limit):
                 const img = link.querySelector(imgSelector);
                 const titleEl = link.querySelector(titleSelector);
                 const authorEl = link.querySelector(authorSelector);
+                const authorNameEl = link.querySelector('.author-info-box .head-name, .head-name.line-one');
+                const metricEls = [...link.querySelectorAll('.info-btns-box .like-action-num')];
                 const textParts = [];
                 for (const el of link.querySelectorAll('span, p, div')) {
                     const text = (el.textContent || '').trim();
@@ -431,6 +468,9 @@ def extract_cards(page, limit):
                     href: link.getAttribute('href') || '',
                     title: titleEl ? (titleEl.textContent || '').trim() : '',
                     author: authorEl ? (authorEl.textContent || '').trim() : '',
+                    author_name: authorNameEl ? normalizeText(authorNameEl) : '',
+                    likes_str: metricEls[0] ? normalizeText(metricEls[0]) : '',
+                    comments_str: metricEls[1] ? normalizeText(metricEls[1]) : '',
                     image_src: img ? (img.getAttribute('src') || '') : '',
                     image_data_src: img ? (img.getAttribute('data-src') || '') : '',
                     image_srcset: img ? (img.getAttribute('srcset') || '') : '',
@@ -1268,9 +1308,19 @@ def normalize_item(raw):
     if not title:
         title = derive_title(raw.get("text") or "")
 
-    author, author_metrics = split_author_metrics(clean_text(raw.get("author") or ""))
+    author_name = clean_text(raw.get("author_name") or "")
+    author, author_metrics = (
+        (author_name, [])
+        if author_name
+        else split_author_metrics(clean_text(raw.get("author") or ""))
+    )
     likes = parse_int(raw.get("likes"))
     views = parse_int(raw.get("views"))
+    likes_str = raw.get("likes_str") or ""
+    if likes_str:
+        likes = parse_int(likes_str)
+    comments_str = raw.get("comments_str") or ""
+    comments = parse_int(comments_str) if comments_str else 0
     if author_metrics:
         likes = author_metrics[0]
         if len(author_metrics) >= 2:
@@ -1283,6 +1333,7 @@ def normalize_item(raw):
         "image_url": image_url,
         "url": f"https://seaart.ai/postDetail/{post_id}",
         "likes": likes,
+        "comments": comments,
         "views": views,
         "collections": parse_int(raw.get("collections")),
         "created_at": raw.get("created_at") or 0,
@@ -1300,6 +1351,7 @@ def output_item(item, raw=None):
         "image_width": raw.get("image_width") or 0,
         "image_height": raw.get("image_height") or 0,
         "likes": item["likes"],
+        "comments": item["comments"],
         "views": item["views"],
         "collections": item["collections"],
         "tags": [],
