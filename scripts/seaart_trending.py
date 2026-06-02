@@ -1581,10 +1581,6 @@ def fetch_trending(count=15):
                     log(f"only {visible_cards} visible postDetail cards after load wait; continuing with fallback paths")
 
                 debug_probe_page(page, f"desktop-after-load-{attempt}")
-                if scroll_to_main_feed_toolbar(page):
-                    log("main feed toolbar scrolled into view before filters")
-                else:
-                    log("main feed toolbar not found before filters")
                 filter_status = apply_filters(page, context)
                 extraction_page = page
 
@@ -1610,10 +1606,6 @@ def fetch_trending(count=15):
                             log(f"only {mobile_visible_cards} visible mobile postDetail cards after load wait")
                         mobile_page.wait_for_timeout(1500)
                         debug_probe_page(mobile_page, f"mobile-after-load-{attempt}")
-                        if scroll_to_main_feed_toolbar(mobile_page):
-                            log("mobile main feed toolbar scrolled into view before filters")
-                        else:
-                            log("mobile main feed toolbar not found before filters")
                         mobile_filter_status = apply_filters(mobile_page, mobile_context)
                         if not mobile_filter_status.get("content_changed"):
                             try_url_filter_probe(mobile_page, mobile_filter_status)
