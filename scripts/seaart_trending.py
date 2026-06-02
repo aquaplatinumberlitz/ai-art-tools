@@ -253,20 +253,22 @@ def extract_cards(page, limit):
                 .replace(/\\s+/g, ' ');
 
             const isUpperSection = (link) => {
-                const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|community\\s+milestones?|milestones?|achievement|achieving|followers|thành\\s*tựu|cộng\\s*đồng/i;
+                const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|milestones?|achievement|achieving|followers|thành\\s*tựu|cộng\\s*đồng/i;
                 let el = link.parentElement;
-                while (el && el !== document.body) {
+                let depth = 0;
+                while (el && el !== document.body && depth < 5) {
                     const box = el.getBoundingClientRect();
-                    const className = String(el.className || '');
+                    if (box.height > 2000 || box.width === window.innerWidth) {
+                        el = el.parentElement;
+                        depth++;
+                        continue;
+                    }
                     const text = normalizeText(el);
-                    const postLinks = el.querySelectorAll(cardSelector).length;
-                    const looksLikeSection = /section|featured|community|milestone|achievement|container|grid/i.test(className) ||
-                        el.tagName.toLowerCase() === 'section' ||
-                        postLinks > 1;
-                    if (looksLikeSection && postLinks <= 12 && box.height < 1200 && upperPattern.test(text)) {
+                    if (upperPattern.test(text)) {
                         return true;
                     }
                     el = el.parentElement;
+                    depth++;
                 }
                 return false;
             };
@@ -288,9 +290,37 @@ def extract_cards(page, limit):
             };
 
             const findFeedBoundaryY = () => {
+                const toolbarContainers = Array.from(document.querySelectorAll('body *'))
+                    .filter((el) => {
+                        if (!visible(el)) return false;
+                        if (el.closest('footer')) return false;
+                        const box = el.getBoundingClientRect();
+                        const className = String(el.className || '');
+                        const text = normalizeText(el);
+                        return /(^|\\s)(my-)?filter-form-box(\\s|$)|right-filter-box|select-filter-box|filter-box/i.test(className) &&
+                            /filter|sort\\s*by|time\\s*range|recommended|hot|new|week|months?/i.test(text) &&
+                            box.height > 0 &&
+                            box.height < 160 &&
+                            box.width > 40 &&
+                            box.top + window.scrollY > 80;
+                    })
+                    .map((el) => {
+                        const box = el.getBoundingClientRect();
+                        return {
+                            y: box.bottom + window.scrollY,
+                            x: box.x,
+                            area: box.width * box.height,
+                        };
+                    })
+                    .sort((a, b) => a.y - b.y || b.area - a.area || a.x - b.x);
+                if (toolbarContainers.length) {
+                    return Math.round(toolbarContainers[0].y);
+                }
+
                 const filterButtons = Array.from(document.querySelectorAll('button, [role="button"]'))
                     .filter((el) => {
                         if (!visible(el)) return false;
+                        if (el.closest('footer')) return false;
                         const text = normalizeText(el);
                         const box = el.getBoundingClientRect();
                         return /^Filter$/i.test(text) &&
@@ -307,7 +337,7 @@ def extract_cards(page, limit):
                             area: box.width * box.height,
                         };
                     })
-                    .sort((a, b) => b.y - a.y || b.x - a.x || a.area - b.area);
+                    .sort((a, b) => a.y - b.y || b.x - a.x || a.area - b.area);
                 if (filterButtons.length) {
                     return Math.round(filterButtons[0].y);
                 }
@@ -315,6 +345,7 @@ def extract_cards(page, limit):
                 const topicChips = Array.from(document.querySelectorAll('button, [role="button"], a, span'))
                     .filter((el) => {
                         if (!visible(el)) return false;
+                        if (el.closest('footer')) return false;
                         if (el.closest('a[href*="postDetail"]')) return false;
                         const text = normalizeText(el);
                         const box = el.getBoundingClientRect();
@@ -330,7 +361,7 @@ def extract_cards(page, limit):
                         const box = el.getBoundingClientRect();
                         return box.bottom + window.scrollY;
                     })
-                    .sort((a, b) => b - a);
+                    .sort((a, b) => a - b);
                 if (topicChips.length) {
                     return Math.round(topicChips[0]);
                 }
@@ -348,6 +379,15 @@ def extract_cards(page, limit):
 
             const links = Array.from(document.querySelectorAll(cardSelector));
             metrics.global_post_links = links.length;
+            const yBands = {above_200: 0, "200_500": 0, "500_1000": 0, "1000_1500": 0, above_1500: 0};
+            for (const link of links) {
+                const top = link.getBoundingClientRect().top + window.scrollY;
+                if (top < 200) yBands.above_200++;
+                else if (top < 500) yBands["200_500"]++;
+                else if (top < 1000) yBands["500_1000"]++;
+                else if (top < 1500) yBands["1000_1500"]++;
+                else yBands.above_1500++;
+            }
             metrics.toolbar_boundary_y = findFeedBoundaryY();
 
             for (const link of links) {
@@ -414,6 +454,11 @@ def extract_cards(page, limit):
             }
 
             metrics.accepted_main_feed = cards.length;
+            if (metrics.global_post_links === 0 || cards.length === 0) {
+                metrics.debug_y_bands = JSON.stringify(yBands);
+                metrics.debug_first_link_top = links.length > 0 ?
+                    Math.round(links[0].getBoundingClientRect().top + window.scrollY) : 0;
+            }
             return {cards, metrics, diagnostics};
         }""",
         {
@@ -445,7 +490,7 @@ def option_labels_for_period(period):
 
 
 def feed_fingerprint(page):
-    """Return the first visible feed cards as a stable content fingerprint."""
+    """Relaxed fingerprint: collect visible cards below toolbar."""
     try:
         fingerprint = page.evaluate(
             """() => {
@@ -458,120 +503,24 @@ def feed_fingerprint(page):
                         box.height > 0;
                 };
 
-                const normalizeText = (el) => (el?.innerText || el?.textContent || '')
-                    .trim()
-                    .replace(/\\s+/g, ' ');
-
-                const isUpperSection = (link) => {
-                    const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|community\\s+milestones?|milestones?|achievement|achieving|followers|thành\\s*tựu|cộng\\s*đồng/i;
-                    let el = link.parentElement;
-                    while (el && el !== document.body) {
-                        const box = el.getBoundingClientRect();
-                        const className = String(el.className || '');
-                        const text = normalizeText(el);
-                        const postLinks = el.querySelectorAll('a[href*="postDetail"]').length;
-                        const looksLikeSection = /section|featured|community|milestone|achievement|container|grid/i.test(className) ||
-                            el.tagName.toLowerCase() === 'section' ||
-                            postLinks > 1;
-                        if (looksLikeSection && postLinks <= 12 && box.height < 1200 && upperPattern.test(text)) {
-                            return true;
-                        }
-                        el = el.parentElement;
-                    }
-                    return false;
-                };
-
-                const insideFilterBox = (link) => {
-                    let el = link.parentElement;
-                    while (el && el !== document.body) {
-                        const box = el.getBoundingClientRect();
-                        const className = String(el.className || '');
-                        const text = normalizeText(el);
-                        if (/(^|\\s)(my-)?filter-form-box(\\s|$)|right-filter-box|select-filter-box|filter-box|popover|drawer/i.test(className) &&
-                            /filter|sort\\s*by|time\\s*range|apply|confirm/i.test(text) &&
-                            box.height < 1200) {
-                            return true;
-                        }
-                        el = el.parentElement;
-                    }
-                    return false;
-                };
-
-                const findToolbarBoundaryY = () => {
-                    const filterButtons = Array.from(document.querySelectorAll('button, [role="button"]'))
-                        .filter((el) => {
-                            if (!visible(el)) return false;
-                            const text = normalizeText(el);
-                            const box = el.getBoundingClientRect();
-                            return /^Filter$/i.test(text) &&
-                                box.height > 0 &&
-                                box.height < 90 &&
-                                box.width >= 40 &&
-                                box.top + window.scrollY > 80;
-                        })
-                        .map((el) => {
-                            const box = el.getBoundingClientRect();
-                            return {
-                                y: box.bottom + window.scrollY,
-                                x: box.x,
-                                area: box.width * box.height,
-                            };
-                        })
-                        .sort((a, b) => b.y - a.y || b.x - a.x || a.area - b.area);
-                    if (filterButtons.length) return Math.round(filterButtons[0].y);
-
-                    const topicChips = Array.from(document.querySelectorAll('button, [role="button"], a, span'))
-                        .filter((el) => {
-                            if (!visible(el)) return false;
-                            if (el.closest('a[href*="postDetail"]')) return false;
-                            const text = normalizeText(el);
-                            const box = el.getBoundingClientRect();
-                            return /Trending|Featured|Topics|Short Film|Pro Tips|Seedance|GPT image/i.test(text) &&
-                                text.length <= 90 &&
-                                box.height > 0 &&
-                                box.height < 72 &&
-                                box.width > 20 &&
-                                box.width < 360 &&
-                                box.top + window.scrollY > 80;
-                        })
-                        .map((el) => el.getBoundingClientRect().bottom + window.scrollY)
-                        .sort((a, b) => b - a);
-                    if (topicChips.length) return Math.round(topicChips[0]);
-
-                    const firstFeedLink = Array.from(document.querySelectorAll('a[href*="postDetail"]'))
-                        .filter((link) => visible(link) && !isUpperSection(link))
-                        .map((link) => link.getBoundingClientRect().top + window.scrollY)
-                        .filter((top) => top > 80)
-                        .sort((a, b) => a - b)[0];
-                    return firstFeedLink ? Math.max(0, Math.round(firstFeedLink - 30)) : 0;
-                };
-
-                const boundaryY = findToolbarBoundaryY();
-                return Array.from(document.querySelectorAll('a[href*="postDetail"]'))
-                    .filter(visible)
-                    .filter((a) => {
+                const links = [...document.querySelectorAll('a[href*="postDetail"]')]
+                    .filter(visible);
+                const candidates = links
+                    .filter(a => {
                         const box = a.getBoundingClientRect();
-                        const absTop = box.top + window.scrollY;
-                        return (!boundaryY || absTop > boundaryY + 50) &&
-                            !isUpperSection(a) &&
-                            box.width >= 80 &&
-                            box.height >= 80 &&
-                            !insideFilterBox(a);
-                    })
-                    .slice(0, 5)
-                    .map((a) => ({
+                        return box.width >= 50 && box.height >= 50 &&
+                            box.top + window.scrollY > 80;
+                    });
+
+                return candidates.slice(0, 5).map((a) => ({
                         href: a.href,
-                        title: (
-                            a.querySelector('img')?.alt ||
-                            a.querySelector('[class*="title"], [class*="Title"], [class*="name"], [class*="Name"]')?.textContent ||
-                            ''
-                        ).trim().replace(/\\s+/g, ' '),
+                        title: (a.querySelector('img')?.alt || '').trim().replace(/\\s+/g, ' '),
                     }));
             }"""
         )
         return fingerprint if isinstance(fingerprint, list) else []
     except Exception as e:
-        log(f"filter fingerprint capture failed: {e}")
+        log(f"fingerprint capture failed: {e}")
         return []
 
 
@@ -586,6 +535,40 @@ def fingerprint_ids(fingerprint):
         match = DETAIL_URL_REGEX.search(href)
         ids.append(match.group(1) if match else href[-36:])
     return ids
+
+
+def wait_for_cards(page, min_count=1, attempts=10, delay_ms=1000, scroll=False):
+    """Wait for visible post links without applying strict feed extraction filters."""
+    last_count = 0
+    for attempt in range(attempts):
+        try:
+            last_count = page.evaluate(
+                """() => {
+                    const visible = (el) => {
+                        const style = window.getComputedStyle(el);
+                        const box = el.getBoundingClientRect();
+                        return style.visibility !== 'hidden' &&
+                            style.display !== 'none' &&
+                            box.width > 0 &&
+                            box.height > 0;
+                    };
+                    return [...document.querySelectorAll('a[href*="postDetail"]')]
+                        .filter(visible)
+                        .length;
+                }"""
+            )
+        except Exception as e:
+            log(f"visible card poll failed: {e}")
+            last_count = 0
+        if last_count >= min_count:
+            return last_count
+        if scroll and attempt in (3, 6):
+            try:
+                page.mouse.wheel(0, 700)
+            except Exception:
+                pass
+        page.wait_for_timeout(delay_ms)
+    return last_count
 
 
 def wait_for_fingerprint_change(page, before_fp, timeout_ms):
@@ -900,6 +883,9 @@ def apply_filters(page, context=None):
         "after_fingerprint": [],
     }
 
+    visible_before = wait_for_cards(page, min_count=5)
+    if visible_before < 5:
+        log(f"default feed baseline has only {visible_before} visible cards before fingerprint")
     before_fingerprint = feed_fingerprint(page)
     before_fp = fingerprint_json(before_fingerprint)
     result["before_fingerprint"] = before_fingerprint
@@ -1075,6 +1061,8 @@ def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filt
         "excluded_upper_section": extraction_metrics.get("excluded_upper_section", 0),
         "excluded_too_small": extraction_metrics.get("excluded_too_small", 0),
         "excluded_inside_filter_box": extraction_metrics.get("excluded_inside_filter_box", 0),
+        "debug_y_bands": extraction_metrics.get("debug_y_bands", ""),
+        "debug_first_link_top": extraction_metrics.get("debug_first_link_top", 0),
         "candidates": len(items) if candidates is None else candidates,
         "selector_matches": len(raw_cards) if selector_matches is None else selector_matches,
         "items": len(items),
@@ -1090,7 +1078,8 @@ def log_metrics(metrics):
         "[SeaArt] toolbar_boundary_y={toolbar_boundary_y} global_post_links={global_post_links} "
         "accepted_main_feed={accepted_main_feed} excluded_above_toolbar={excluded_above_toolbar} "
         "excluded_upper_section={excluded_upper_section} excluded_too_small={excluded_too_small} "
-        "excluded_inside_filter_box={excluded_inside_filter_box}".format(**metrics),
+        "excluded_inside_filter_box={excluded_inside_filter_box} debug_y_bands={debug_y_bands} "
+        "debug_first_link_top={debug_first_link_top}".format(**metrics),
         file=sys.stderr,
     )
     print(
@@ -1208,6 +1197,9 @@ def fetch_trending(count=15):
                 except Exception as e:
                     error = f"post cards did not appear: {e}"
                     log(error)
+                visible_cards = wait_for_cards(page, min_count=1, attempts=10, scroll=True)
+                if visible_cards == 0:
+                    log("no visible postDetail cards after load wait; continuing with default feed fallback")
 
                 debug_probe_page(page, f"desktop-after-load-{attempt}")
                 filter_status = apply_filters(page, context)
@@ -1220,7 +1212,15 @@ def fetch_trending(count=15):
                         mobile_page = mobile_context.new_page()
                         log("loading trending page in mobile context")
                         mobile_page.goto(SEAART_POST_URL, wait_until='domcontentloaded', timeout=30000)
-                        mobile_page.wait_for_selector(CARD_SELECTOR, timeout=15000)
+                        try:
+                            mobile_page.wait_for_selector(CARD_SELECTOR, timeout=15000)
+                        except Exception as e:
+                            log(f"mobile post cards did not appear: {e}")
+                        mobile_visible_cards = wait_for_cards(
+                            mobile_page, min_count=1, attempts=10, scroll=True
+                        )
+                        if mobile_visible_cards == 0:
+                            log("no visible mobile postDetail cards after load wait")
                         mobile_page.wait_for_timeout(1500)
                         debug_probe_page(mobile_page, f"mobile-after-load-{attempt}")
                         mobile_filter_status = apply_filters(mobile_page, mobile_context)
