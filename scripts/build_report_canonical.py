@@ -487,9 +487,9 @@ body::after{content:'';position:fixed;z-index:0;bottom:-15%;right:-8%;width:260p
 }
 .trend-mosaic{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:228px;gap:10px;grid-auto-flow:dense}
 .trend-card:first-child{grid-column:span 2;grid-row:span 2}
-.trend-card,.art-card{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:var(--card);box-shadow:0 2px 12px var(--shadow);transition:transform .22s,box-shadow .22s}
+.trend-card,.art-card{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;box-shadow:0 2px 12px var(--shadow);transition:transform .22s,box-shadow .22s}
 .trend-card:hover,.art-card:hover{transform:translateY(-3px);box-shadow:0 6px 24px var(--shadow);border-color:var(--lavender)}
-.thumb-shell{position:relative;overflow:hidden;aspect-ratio:4/5;background:linear-gradient(110deg,#f5ede6 8%,#fcf6f0 18%,#f5ede6 33%);background-size:200% 100%;animation:shimmer 1.4s linear infinite;border-radius:12px 12px 0 0}
+.thumb-shell{position:relative;overflow:hidden;aspect-ratio:4/5;flex-shrink:0;background:linear-gradient(110deg,#f5ede6 8%,#fcf6f0 18%,#f5ede6 33%);background-size:200% 100%;animation:shimmer 1.4s linear infinite;border-radius:12px 12px 0 0}
 .thumb-shell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .35s ease}
 .thumb-shell.is-loaded{animation:none;background:#f5ede6}
 .thumb-shell.is-loaded img{opacity:1}
@@ -500,10 +500,10 @@ body::after{content:'';position:fixed;z-index:0;bottom:-15%;right:-8%;width:260p
 @keyframes shimmer{to{background-position:-200% 0}}
 .card-overlay{position:absolute;inset:auto 0 0 0;padding:11px 12px 12px;display:flex;flex-direction:column;gap:4px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.18) 22%,rgba(0,0,0,.52) 58%,rgba(0,0,0,.68) 100%)}
 .card-overlay::before{content:"";position:absolute;inset:-56px 0 0;z-index:-1;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.20) 35%,rgba(0,0,0,.66) 100%)}
-.art-card .card-overlay{position:static;padding:10px 10px 12px;background:var(--card);border-radius:0 0 16px 16px}
+.art-card .card-overlay{position:static;padding:10px 10px 12px;background:var(--card);border-radius:0 0 16px 16px;min-height:96px}
 .badge-row{position:absolute;z-index:2;top:7px;left:7px;right:7px;display:flex;justify-content:space-between;gap:5px}
 .source-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:rgba(255,251,247,.96);border:1px solid #d8c4b4;color:#5f5148;font-size:12px;font-weight:700}
-.card-title{margin:0;font-size:13px;font-weight:700;line-height:1.25;color:#3f3028;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-title{margin:0;font-size:13px;font-weight:700;line-height:1.3;color:#3f3028;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
 .trend-card .card-title{color:#fffaf3;text-shadow:0 1px 2px rgba(0,0,0,.55)}
 .trend-card .card-author,.trend-card .card-meta{color:rgba(255,250,243,.76)}
 .trend-card .source-link .lucide{color:#a84860;stroke-width:2.2}
