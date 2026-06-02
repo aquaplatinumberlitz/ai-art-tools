@@ -331,7 +331,7 @@ setup_cron() {
     quoted_repo="$(shell_quote "$HERMES_REPO_DIR")"
     quoted_env="$(shell_quote "$ENV_FILE")"
     quoted_log="$(shell_quote "$HERMES_HOME/logs/pipeline.log")"
-    command="cd $quoted_repo && set -a && . $quoted_env && set +a && bash scripts/pipeline/daily_report_pipeline.sh >> $quoted_log 2>&1"
+    command="cd $quoted_repo && set -a && . $quoted_env && set +a && bash scripts/daily_report_pipeline.sh >> $quoted_log 2>&1"
     block="${CRON_BEGIN}
 ${CRON_SCHEDULE} ${command}
 ${CRON_END}"
@@ -359,9 +359,8 @@ ${CRON_END}"
 verify_syntax() {
     log "running syntax checks"
     run_cmd bash -n "$HERMES_REPO_DIR/deploy/install.sh"
-    run_cmd bash -n "$HERMES_REPO_DIR/scripts/pipeline/daily_report_pipeline.sh"
-    run_cmd "$VENV_DIR/bin/python" -m py_compile "$HERMES_REPO_DIR"/scripts/sources/*.py
-    run_cmd "$VENV_DIR/bin/python" -m py_compile "$HERMES_REPO_DIR"/scripts/report/*.py
+    run_cmd bash -n "$HERMES_REPO_DIR/scripts/daily_report_pipeline.sh"
+    run_cmd "$VENV_DIR/bin/python" -m py_compile "$HERMES_REPO_DIR"/scripts/*.py
     run_cmd "$VENV_DIR/bin/python" -m py_compile "$HERMES_REPO_DIR"/scripts/auth/*.py
     run_cmd "$VENV_DIR/bin/python" -m py_compile "$HERMES_REPO_DIR"/scripts/maintenance/*.py
 }
@@ -384,7 +383,7 @@ run_pipeline_once() {
         # shellcheck disable=SC1090
         . "$ENV_FILE"
         set +a
-        bash scripts/pipeline/daily_report_pipeline.sh
+        bash scripts/daily_report_pipeline.sh
     )
 }
 

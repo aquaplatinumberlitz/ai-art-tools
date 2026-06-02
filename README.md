@@ -15,7 +15,7 @@ The installer will:
 4. Generate a `.env` configuration
 5. Set up the daily cron job
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for details.
+See [deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md) for details.
 
 ## Data Sources
 
