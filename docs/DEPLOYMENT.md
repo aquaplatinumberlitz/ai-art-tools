@@ -78,10 +78,10 @@ cd "$HERMES_REPO_DIR"
 set -a
 . "$HERMES_HOME/.env"
 set +a
-bash scripts/daily_report_pipeline.sh
+bash scripts/pipeline/daily_report_pipeline.sh
 ```
 
-The pipeline also derives `HERMES_SCRIPT_DIR` from `HERMES_REPO_DIR` at startup, validates that all required source scripts exist, and exits before fetching if any required script is missing.
+The pipeline also derives `HERMES_SCRIPT_DIR` from `HERMES_REPO_DIR` at startup, validates that all required source scripts exist under `scripts/sources/` and `scripts/report/`, and exits before fetching if any required script is missing.
 
 ## Logs
 
@@ -97,7 +97,7 @@ The installer writes a marked crontab block:
 
 ```text
 # BEGIN HERMES AI ART TOOLS
-15 22 * * * cd "$HERMES_REPO_DIR" && set -a && . "$HERMES_HOME/.env" && set +a && bash scripts/daily_report_pipeline.sh >> "$HERMES_HOME/logs/pipeline.log" 2>&1
+15 22 * * * cd "$HERMES_REPO_DIR" && set -a && . "$HERMES_HOME/.env" && set +a && bash scripts/pipeline/daily_report_pipeline.sh >> "$HERMES_HOME/logs/pipeline.log" 2>&1
 # END HERMES AI ART TOOLS
 ```
 
@@ -105,7 +105,7 @@ To remove cron, run `crontab -e` and delete that whole block.
 
 ## SeaArt Filter Quality
 
-SeaArt runs from `scripts/seaart_trending.py` in the repo checkout. The fetcher records a fingerprint of the first feed card URLs/titles before selecting filters, then waits for the fingerprint to change after Hot/Week selection. If it changes, source status is marked `quality=hot_week`; otherwise the report keeps the JSON but marks `quality=default_feed` with a warning.
+SeaArt runs from `scripts/sources/seaart_trending.py` in the repo checkout. The fetcher records a fingerprint of the first feed card URLs/titles before selecting filters, then waits for the fingerprint to change after Hot/Week selection. If it changes, source status is marked `quality=hot_week`; otherwise the report keeps the JSON but marks `quality=default_feed` with a warning.
 
 ## Update Repo
 

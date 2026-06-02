@@ -21,3 +21,4 @@ reddit_state.json
 *.auth.json
 *.auth_state.json
 *storage_state*.json
+normalized_*.json

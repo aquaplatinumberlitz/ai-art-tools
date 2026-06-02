@@ -25,26 +25,6 @@ SITES = {
         "origin": "https://pixai.art",
         "output": "pixai_state.json",
     },
-    "civitai": {
-        "urls": ["https://civitai.com"],
-        "origin": "https://civitai.com",
-        "output": "civitai_state.json",
-    },
-    "huggingface": {
-        "urls": ["https://huggingface.co"],
-        "origin": "https://huggingface.co",
-        "output": "huggingface_state.json",
-    },
-    "danbooru": {
-        "urls": ["https://danbooru.donmai.us"],
-        "origin": "https://danbooru.donmai.us",
-        "output": "danbooru_state.json",
-    },
-    "reddit": {
-        "urls": ["https://www.reddit.com", "https://reddit.com"],
-        "origin": "https://www.reddit.com",
-        "output": "reddit_state.json",
-    },
 }
 
 CHROME_CDP_URL = os.environ.get("CHROME_CDP_URL", "http://127.0.0.1:9222")

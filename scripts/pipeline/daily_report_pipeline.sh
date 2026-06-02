@@ -8,16 +8,16 @@ export PIXIV_TOKEN_FILE="$HERMES_SCRIPT_DIR/.pixiv_token.json"
 mkdir -p "$REPORT_DIR"
 
 required_scripts=(
-    seaart_trending.py
-    pixiv_app.py
-    danbooru_trending.py
-    civitai_trending.py
-    pixai_trending.py
-    pixiv_search_ba.py
-    pixai_ba.py
-    reddit_rss.py
-    hf_models_trending.py
-    build_report_canonical.py
+    scripts/sources/seaart_trending.py
+    scripts/sources/pixiv_app.py
+    scripts/sources/danbooru_trending.py
+    scripts/sources/civitai_trending.py
+    scripts/sources/pixai_trending.py
+    scripts/sources/pixiv_search_ba.py
+    scripts/sources/pixai_ba.py
+    scripts/sources/reddit_rss.py
+    scripts/sources/hf_models_trending.py
+    scripts/report/build_report_canonical.py
 )
 
 if [ ! -d "$HERMES_SCRIPT_DIR" ]; then
@@ -26,13 +26,13 @@ if [ ! -d "$HERMES_SCRIPT_DIR" ]; then
 fi
 
 for script in "${required_scripts[@]}"; do
-    if [ ! -f "$HERMES_SCRIPT_DIR/$script" ]; then
-        echo "❌ Required script missing: $HERMES_SCRIPT_DIR/$script" >&2
+    if [ ! -f "$HERMES_REPO_DIR/$script" ]; then
+        echo "❌ Required script missing: $HERMES_REPO_DIR/$script" >&2
         exit 1
     fi
 done
 
-cd "$HERMES_SCRIPT_DIR"
+cd "$HERMES_REPO_DIR"
 export HERMES_REPO_DIR HERMES_SCRIPT_DIR
 
 echo "📡 Daily Report Pipeline — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -202,43 +202,43 @@ run_json_source() {
 
 # ─── 1. SeaArt ───
 echo "[1/10] SeaArt..."
-run_json_source "SeaArt" "$REPORT_DIR/seaart.json" python3 seaart_trending.py
+run_json_source "SeaArt" "$REPORT_DIR/seaart.json" python3 scripts/sources/seaart_trending.py
 
 # ─── 2. Pixiv SFW ───
 echo "[2/10] Pixiv SFW..."
-run_json_source "Pixiv SFW" "$REPORT_DIR/pixiv_sfw.json" python3 pixiv_app.py day 10
+run_json_source "Pixiv SFW" "$REPORT_DIR/pixiv_sfw.json" python3 scripts/sources/pixiv_app.py day 10
 
 # ─── 3. Pixiv R18 ───
 echo "[3/10] Pixiv R18..."
-run_json_source "Pixiv R18" "$REPORT_DIR/pixiv_r18.json" python3 pixiv_app.py day_r18 10
+run_json_source "Pixiv R18" "$REPORT_DIR/pixiv_r18.json" python3 scripts/sources/pixiv_app.py day_r18 10
 
 # ─── 4. Danbooru ───
 echo "[4/10] Danbooru..."
-run_json_source "Danbooru" "$REPORT_DIR/danbooru.json" python3 danbooru_trending.py 10 day
+run_json_source "Danbooru" "$REPORT_DIR/danbooru.json" python3 scripts/sources/danbooru_trending.py 10 day
 
 # ─── 5. CivitAI ───
 echo "[5/10] CivitAI..."
-run_json_source "CivitAI" "$REPORT_DIR/civitai.json" python3 civitai_trending.py 10
+run_json_source "CivitAI" "$REPORT_DIR/civitai.json" python3 scripts/sources/civitai_trending.py 10
 
 # ─── 6. PixAI ───
 echo "[6/10] PixAI..."
-run_json_source "PixAI" "$REPORT_DIR/pixai.json" python3 pixai_trending.py
+run_json_source "PixAI" "$REPORT_DIR/pixai.json" python3 scripts/sources/pixai_trending.py
 
 # ─── 7. Blue Archive Pixiv ───
 echo "[7/10] Blue Archive Pixiv..."
-run_json_source "BA Pixiv" "$REPORT_DIR/ba_pixiv.json" python3 pixiv_search_ba.py 5
+run_json_source "BA Pixiv" "$REPORT_DIR/ba_pixiv.json" python3 scripts/sources/pixiv_search_ba.py 5
 
 # ─── 8. Blue Archive PixAI ───
 echo "[8/10] Blue Archive PixAI..."
-run_json_source "BA Pixai" "$REPORT_DIR/ba_pixai.json" python3 pixai_ba.py 5
+run_json_source "BA Pixai" "$REPORT_DIR/ba_pixai.json" python3 scripts/sources/pixai_ba.py 5
 
 # ─── 9. Reddit ───
 echo "[9/10] Reddit RSS..."
-run_json_source "Reddit" "$REPORT_DIR/reddit.json" python3 reddit_rss.py
+run_json_source "Reddit" "$REPORT_DIR/reddit.json" python3 scripts/sources/reddit_rss.py
 
 # ─── 10. HuggingFace ───
 echo "[10/10] HuggingFace..."
-run_json_source "HuggingFace" "$REPORT_DIR/hf_models.json" python3 hf_models_trending.py 8
+run_json_source "HuggingFace" "$REPORT_DIR/hf_models.json" python3 scripts/sources/hf_models_trending.py 8
 
 echo ""
 echo "📊 Fetched: $((10 - FAILED))/10 sources"
@@ -246,7 +246,7 @@ echo "📊 Fetched: $((10 - FAILED))/10 sources"
 # ─── BUILD ───
 echo ""
 echo "🔧 Building report.html..."
-if python3 build_report_canonical.py; then
+if python3 scripts/report/build_report_canonical.py; then
     echo "✅ http://150.230.56.153:8002/report.html"
 else
     echo "❌ Build failed" >&2
