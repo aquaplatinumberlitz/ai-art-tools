@@ -142,7 +142,7 @@ run_json_source() {
     rm -f "$err"
     rm -f "$json_err"
 
-    local source_timeout="${HERMES_SOURCE_TIMEOUT:-120}"
+    local source_timeout="${HERMES_SOURCE_TIMEOUT:-180}"
     local start=$SECONDS
     local rc=0
     local duration=0

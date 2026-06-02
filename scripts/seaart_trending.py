@@ -386,7 +386,14 @@ def extract_cards(page, limit):
             }
             metrics.toolbar_boundary_y = findFeedBoundaryY();
             if (!metrics.toolbar_boundary_y || metrics.toolbar_boundary_y < 200) {
-                metrics.toolbar_boundary_y = 999999;
+                // Fallback: use first visible card below 200px as boundary
+                const firstLow = links.filter(a => {
+                    const t = a.getBoundingClientRect().top + window.scrollY;
+                    return t > 200;
+                });
+                metrics.toolbar_boundary_y = firstLow.length
+                    ? Math.round(firstLow[0].getBoundingClientRect().top + window.scrollY - 30)
+                    : 999999;
             }
 
             for (const link of links) {
