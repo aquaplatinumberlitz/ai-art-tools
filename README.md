@@ -95,6 +95,25 @@ SeaArt has no stable public API for community trending posts. The fetcher uses P
 | `SEAART_PERIOD` | `week` | Time range: `week`, `month`, `all` |
 | `SEAART_POOL_SIZE` | `20` | Candidate pool size before local sort |
 
+## SeaArt Login (Optional)
+
+By default, the SeaArt scraper runs anonymously. If you want the scraped feed to more closely match your logged-in browser view:
+
+1. Run the login helper:
+   ```bash
+   python3 scripts/seaart_login.py
+   ```
+   This opens a headed browser. Log in manually, then press Enter.
+
+2. Uncomment `SEAART_STATE_FILE` in `.env`:
+   ```
+   SEAART_STATE_FILE=/home/ubuntu/.hermes/references/seaart_state.json
+   ```
+
+3. The scraper will now use your session. To refresh expired sessions, rerun step 1.
+
+The state file is private — never commit it.
+
 ## Probe / Dev-only Scripts
 
 These scripts are not part of the production pipeline:

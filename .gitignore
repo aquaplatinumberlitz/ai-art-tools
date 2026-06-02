@@ -8,3 +8,6 @@ venv/
 .venv/
 accounts/
 references/accounts.md
+seaart_state.json
+*.auth.json
+*.auth_state.json

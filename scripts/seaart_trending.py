@@ -1377,8 +1377,51 @@ def save_debug_artifacts(results, html, screenshot, error, filter_status=None):
         (DEBUG_DIR / "seaart-error.txt").write_text(str(error), encoding="utf-8")
 
 
-def new_mobile_context(browser):
+def get_seaart_state_args():
+    # Load SeaArt storage state if available.
+    seaart_state = os.environ.get("SEAART_STATE_FILE", "")
+    seaart_require_login = os.environ.get("SEAART_REQUIRE_LOGIN", "0") == "1"
+
+    state_args = {}
+    auth_state = "missing"
+    if seaart_state and Path(seaart_state).exists():
+        try:
+            with open(seaart_state) as f:
+                json.load(f)
+            state_args["storage_state"] = seaart_state
+            auth_state = "loaded"
+            log(f"auth_state=loaded file={seaart_state}")
+        except Exception as e:
+            auth_state = "invalid"
+            log(f"auth_state=invalid file={seaart_state} error={e}")
+            if seaart_require_login:
+                raise RuntimeError("SeaArt login state is required but invalid")
+    else:
+        log("auth_state=missing anonymous=true")
+
+    return state_args, auth_state
+
+
+def log_login_state(page, auth_state):
+    logged_in_js = """
+        () => {
+            const text = document.body.innerText || '';
+            const hasLoginBtn = /Đăng nhập|Login|Sign in|Log in/i.test(text);
+            const hasAvatar = !!document.querySelector(
+                '[class*="avatar"], [class*="Avatar"], [class*="user-menu"], [class*="UserMenu"]'
+            );
+            return !hasLoginBtn || hasAvatar;
+        }
+    """
+    is_logged_in = page.evaluate(logged_in_js)
+    log(f"logged_in={str(is_logged_in).lower()} auth_state={auth_state}")
+    return is_logged_in
+
+
+def new_mobile_context(browser, state_args=None):
+    state_args = state_args or {}
     return browser.new_context(
+        **state_args,
         user_agent=(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
             "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
@@ -1476,7 +1519,9 @@ def fetch_trending(count=15):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         try:
+            state_args, auth_state = get_seaart_state_args()
             context = browser.new_context(
+                **state_args,
                 user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 viewport={'width': 1440, 'height': 900}
             )
@@ -1491,6 +1536,7 @@ def fetch_trending(count=15):
                     log(f"no results, retrying page load ({attempt}/2)")
                     page.reload(wait_until='domcontentloaded', timeout=30000)
 
+                log_login_state(page, auth_state)
                 try:
                     page.wait_for_selector(CARD_SELECTOR, timeout=15000)
                 except Exception as e:
@@ -1510,10 +1556,11 @@ def fetch_trending(count=15):
                 if not filter_status.get("content_changed"):
                     log("desktop filter did not change content; retrying with mobile browser context")
                     try:
-                        mobile_context = new_mobile_context(browser)
+                        mobile_context = new_mobile_context(browser, state_args)
                         mobile_page = mobile_context.new_page()
                         log("loading trending page in mobile context")
                         mobile_page.goto(SEAART_POST_URL, wait_until='domcontentloaded', timeout=30000)
+                        log_login_state(mobile_page, auth_state)
                         try:
                             mobile_page.wait_for_selector(CARD_SELECTOR, timeout=15000)
                         except Exception as e:
