@@ -2,8 +2,9 @@
 # Daily AI Art Report — Fetch 10 data sources, then build report.html
 # Runs as no_agent=true cron job at 22:15 UTC
 REPORT_DIR="${HERMES_DATA_DIR:-/tmp/hermes_report}"
-HERMES_REPO_DIR="${HERMES_REPO_DIR:-/tmp/ai-art-tools}"
+HERMES_REPO_DIR="${HERMES_REPO_DIR:-/home/ubuntu/.hermes/ai-art-tools}"
 HERMES_SCRIPT_DIR="$HERMES_REPO_DIR/scripts"
+export PIXIV_TOKEN_FILE="$HERMES_SCRIPT_DIR/.pixiv_token.json"
 mkdir -p "$REPORT_DIR"
 
 required_scripts=(
