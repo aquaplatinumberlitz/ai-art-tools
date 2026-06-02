@@ -62,14 +62,17 @@ python3 scripts/seaart_trending.py > /tmp/hermes_report/seaart.json
 ## Configuration
 
 - `deploy/install.sh` — recommended setup path. It creates `$HERMES_HOME/.env`, reuses account markdown files when available, and installs the cron job.
-- `scripts/.pixiv_token.json` — Pixiv OAuth refresh token, with a `refresh_token` field, used by `pixiv_app.py` and `pixiv_search_ba.py`.
+- All private runtime auth/token/state files live under `/home/ubuntu/.hermes/references/`:
+  - `pixiv_token.json` — Pixiv OAuth refresh token, with a `refresh_token` field, used by `pixiv_app.py` and `pixiv_search_ba.py`.
+  - `pixai_state.json` — saved PixAI Playwright storage state generated after login.
+  - `seaart_state.json` — saved SeaArt Playwright storage state generated after login.
 - `PIXAI_EMAIL` and `PIXAI_PASSWORD` — PixAI login credentials used when the saved Playwright session expires.
 - `HERMES_REPO_DIR` — repository root used by the cron pipeline. Defaults to `/tmp/ai-art-tools`.
 - `HERMES_SCRIPT_DIR` — derived from `HERMES_REPO_DIR/scripts` by `scripts/daily_report_pipeline.sh`; production scripts run from the repo checkout, not from `~/.hermes/scripts`.
 - `/tmp/hermes_report` — JSON data directory used by `scripts/daily_report_pipeline.sh` and `scripts/build_report_canonical.py`.
 - `/home/ubuntu/.hermes/cron` — report output directory used by `scripts/build_report_canonical.py`; it must also contain `pixiv_downloader.py`.
 - `/home/ubuntu/.hermes/cron/images` — local image cache directory used by `scripts/build_report_canonical.py`.
-- `~/.hermes/scripts/.pixai_state.json` — saved PixAI Playwright storage state generated after login.
+- `/home/ubuntu/.hermes/references/pixai_state.json` — saved PixAI Playwright storage state generated after login.
 - `HERMES_BASE_URL` — public URL prefix for the generated report and cached images.
 
 ## Environment Variables

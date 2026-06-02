@@ -1,4 +1,7 @@
 .pixiv_token.json
+pixai_state.json
+pixiv_token.json
+.pixai_state.json
 *.log
 logs/
 __pycache__/
@@ -8,6 +11,8 @@ venv/
 .venv/
 accounts/
 references/accounts.md
+accounts.md
 seaart_state.json
 *.auth.json
 *.auth_state.json
+*storage_state*.json

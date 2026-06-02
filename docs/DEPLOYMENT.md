@@ -18,6 +18,18 @@ bash deploy/install.sh
 
 Use `HERMES_DRY_RUN=1` to preview actions. Use `HERMES_INTERACTIVE=1` to prompt for missing required credentials. Use `HERMES_RUN_ONCE=1` to run the pipeline once after installation.
 
+## Auth File Standardization
+
+All private runtime auth/token/state files are standardized under `/home/ubuntu/.hermes/references/`:
+
+| File | Source | Purpose |
+|------|--------|---------|
+| `pixiv_token.json` | Pixiv OAuth | OAuth refresh token with `{"refresh_token": "..."}` |
+| `pixai_state.json` | PixAI Playwright | Saved browser storage state after login |
+| `seaart_state.json` | SeaArt Playwright | Saved browser storage state after login |
+
+These files are set to `chmod 600` and their parent directories to `chmod 700` for security. The corresponding `.env` variables (`PIXIV_TOKEN_FILE`, `PIXAI_STATE_FILE`, `SEAART_STATE_FILE`) point to these canonical paths.
+
 ## Account File Discovery
 
 The installer reuses the first account markdown file it finds in this order:
