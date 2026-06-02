@@ -78,7 +78,7 @@ cd "$HERMES_REPO_DIR"
 set -a
 . "$HERMES_HOME/.env"
 set +a
-bash scripts/pipeline/daily_report_pipeline.sh
+bash scripts/daily_report_pipeline.sh
 ```
 
 The pipeline also derives `HERMES_SCRIPT_DIR` from `HERMES_REPO_DIR` at startup, validates that all required source scripts exist under `scripts/sources/` and `scripts/report/`, and exits before fetching if any required script is missing.
@@ -97,7 +97,7 @@ The installer writes a marked crontab block:
 
 ```text
 # BEGIN HERMES AI ART TOOLS
-15 22 * * * cd "$HERMES_REPO_DIR" && set -a && . "$HERMES_HOME/.env" && set +a && bash scripts/pipeline/daily_report_pipeline.sh >> "$HERMES_HOME/logs/pipeline.log" 2>&1
+15 22 * * * cd "$HERMES_REPO_DIR" && set -a && . "$HERMES_HOME/.env" && set +a && bash scripts/daily_report_pipeline.sh >> "$HERMES_HOME/logs/pipeline.log" 2>&1
 # END HERMES AI ART TOOLS
 ```
 
