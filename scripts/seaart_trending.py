@@ -253,7 +253,11 @@ def extract_cards(page, limit):
                 .replace(/\\s+/g, ' ');
 
             const isUpperSection = (link) => {
-                const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|milestones?|achievement|achieving|followers|thành\\s*tựu|cộng\\s*đồng/i;
+                const box = link.getBoundingClientRect();
+                const absTop = box.top + window.scrollY;
+                if (absTop < 400) return true;
+
+                const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|milestones?|achievement|achieving|followers|thành\\s*tựu|cộng\\s*đồng|nổi bật|sáng tạo|community/i;
                 let el = link.parentElement;
                 let depth = 0;
                 while (el && el !== document.body && depth < 5) {
@@ -363,17 +367,9 @@ def extract_cards(page, limit):
                     })
                     .sort((a, b) => a - b);
                 if (topicChips.length) {
-                    return Math.round(topicChips[0]);
-                }
+                        return Math.round(topicChips[0]);
+                    }
 
-                const firstFeedLink = Array.from(document.querySelectorAll(cardSelector))
-                    .filter((link) => visible(link) && !isUpperSection(link))
-                    .map((link) => link.getBoundingClientRect().top + window.scrollY)
-                    .filter((top) => top > 80)
-                    .sort((a, b) => a - b)[0];
-                if (firstFeedLink) {
-                    return Math.max(0, Math.round(firstFeedLink - 30));
-                }
                 return 0;
             };
 
@@ -389,6 +385,9 @@ def extract_cards(page, limit):
                 else yBands.above_1500++;
             }
             metrics.toolbar_boundary_y = findFeedBoundaryY();
+            if (!metrics.toolbar_boundary_y || metrics.toolbar_boundary_y < 200) {
+                metrics.toolbar_boundary_y = 999999;
+            }
 
             for (const link of links) {
                 const rect = link.getBoundingClientRect();
@@ -396,7 +395,7 @@ def extract_cards(page, limit):
                 let included = false;
                 let excludeReason = "";
 
-                if (metrics.toolbar_boundary_y && absTop <= metrics.toolbar_boundary_y + 50) {
+                if (absTop <= metrics.toolbar_boundary_y + 50) {
                     metrics.excluded_above_toolbar += 1;
                     excludeReason = "above_toolbar";
                 } else if (isUpperSection(link)) {
@@ -489,11 +488,50 @@ def option_labels_for_period(period):
     return period, [period.title()]
 
 
+def scroll_to_main_feed_toolbar(page) -> bool:
+    """Scroll page to bring the main feed toolbar (chip row) into view."""
+    box = page.evaluate("""
+        () => {
+            const visible = (el) => {
+                const s = window.getComputedStyle(el);
+                const b = el.getBoundingClientRect();
+                return s.visibility !== 'hidden' && s.display !== 'none' && b.width > 0 && b.height > 0;
+            };
+            const chips = [...document.querySelectorAll('button, div, span, a')]
+                .filter(el => {
+                    if (!visible(el)) return false;
+                    if (el.closest('a[href*="postDetail"]')) return false;
+                    const text = (el.innerText || el.textContent || '').trim();
+                    return /Trending|Featured Topics|Short Film|Pro Tips|Viral Clips|GPT image|Seedance/i.test(text);
+                });
+            if (chips.length) {
+                const box = chips[0].getBoundingClientRect();
+                return {x: box.x, y: box.y, top: box.top + window.scrollY};
+            }
+            const filters = [...document.querySelectorAll('button, div, span')]
+                .filter(el => {
+                    if (!visible(el)) return false;
+                    return /^Filter$/i.test((el.innerText || el.textContent || '').trim());
+                });
+            if (filters.length) {
+                const box = filters[0].getBoundingClientRect();
+                return {x: box.x, y: box.y, top: box.top + window.scrollY};
+            }
+            return null;
+        }
+    """)
+    if box:
+        page.evaluate(f"window.scrollTo(0, {box['top'] - 100})")
+        page.wait_for_timeout(1000)
+        return True
+    return False
+
+
 def feed_fingerprint(page):
     """Relaxed fingerprint: collect visible cards below toolbar."""
     try:
-        fingerprint = page.evaluate(
-            """() => {
+        fingerprint = page.evaluate("""
+            () => {
                 const visible = (el) => {
                     const style = window.getComputedStyle(el);
                     const box = el.getBoundingClientRect();
@@ -502,56 +540,44 @@ def feed_fingerprint(page):
                         box.width > 0 &&
                         box.height > 0;
                 };
-                const normalizeText = (el) => (el?.innerText || el?.textContent || '')
-                    .trim()
-                    .replace(/\\s+/g, ' ');
-
+                const normalizeText = (el) => (el?.innerText || el?.textContent || '').trim().replace(/\\s+/g, ' ');
+                
                 const findFeedBoundaryY = () => {
-                    const toolbarContainers = Array.from(document.querySelectorAll('body *'))
+                    const chips = [...document.querySelectorAll('button, div, span, a')]
                         .filter((el) => {
                             if (!visible(el)) return false;
-                            if (el.closest('footer')) return false;
-                            const box = el.getBoundingClientRect();
-                            const className = String(el.className || '');
+                            if (el.closest('a[href*="postDetail"]')) return false;
                             const text = normalizeText(el);
-                            return /(^|\\s)(my-)?filter-form-box(\\s|$)|right-filter-box|select-filter-box/i.test(className) &&
-                                /filter|sort\\s*by|recommended|hot|new|week|months?/i.test(text) &&
-                                box.height > 0 &&
-                                box.height < 180 &&
-                                box.width > 40 &&
-                                box.top + window.scrollY > 80;
-                        })
-                        .map((el) => {
-                            const box = el.getBoundingClientRect();
-                            return box.bottom + window.scrollY;
-                        })
-                        .sort((a, b) => a - b);
-                    return toolbarContainers[0] || 0;
-                };
-
-                const links = [...document.querySelectorAll('a[href*="postDetail"]')]
-                    .filter(visible);
-                const boundaryY = findFeedBoundaryY();
-                let candidates = links
-                    .filter(a => {
-                        const box = a.getBoundingClientRect();
-                        const top = box.top + window.scrollY;
-                        return box.width >= 50 && box.height >= 50 &&
-                            top > Math.max(80, boundaryY + 50);
-                    });
-                if (candidates.length < 5) {
-                    candidates = links
-                        .filter(a => {
-                            const box = a.getBoundingClientRect();
-                            return box.width >= 50 && box.height >= 50 &&
-                                box.top + window.scrollY > 80;
+                            return /Trending|Featured Topics|Short Film|Pro Tips|Viral Clips|GPT image|Seedance|Filter/i.test(text);
                         });
-                }
-
-                return candidates.slice(0, 5).map((a) => ({
+                    if (chips.length) {
+                        const boxes = chips.map(el => el.getBoundingClientRect());
+                        const maxBottom = Math.max(...boxes.map(b => b.bottom + window.scrollY));
+                        return Math.round(maxBottom);
+                    }
+                    return 0;
+                };
+                
+                const boundaryY = findFeedBoundaryY();
+                const links = [...document.querySelectorAll('a[href*="postDetail"]')].filter(visible);
+                const candidates = links.filter(a => {
+                    const box = a.getBoundingClientRect();
+                    const top = box.top + window.scrollY;
+                    return box.width >= 50 && box.height >= 50 && top > (boundaryY || 80) + 50;
+                });
+                if (candidates.length < 3) {
+                    return links.filter(a => {
+                        const box = a.getBoundingClientRect();
+                        return box.width >= 50 && box.height >= 50 && box.top + window.scrollY > 80;
+                    }).slice(0, 5).map(a => ({
                         href: a.href,
-                        title: (a.querySelector('img')?.alt || '').trim().replace(/\\s+/g, ' '),
+                        title: (a.querySelector('img')?.alt || '').trim().replace(/\\s+/g, ' ')
                     }));
+                }
+                return candidates.slice(0, 5).map(a => ({
+                    href: a.href,
+                    title: (a.querySelector('img')?.alt || '').trim().replace(/\\s+/g, ' ')
+                }));
             }"""
         )
         return fingerprint if isinstance(fingerprint, list) else []
@@ -1434,8 +1460,12 @@ def new_mobile_context(browser, state_args=None):
 
 
 def collect_results_from_page(page, count, pool_size):
+    scroll_to_main_feed_toolbar(page)
     raw_cards = extract_cards(page, pool_size)
     selector_matches = page.locator(CARD_SELECTOR).count()
+    if (_LAST_EXTRACTION_METRICS or {}).get("toolbar_boundary_y", 0) >= 999999:
+        log("toolbar_boundary_y unavailable after toolbar scroll; rejecting extraction candidates")
+        return raw_cards, [], selector_matches, 0
     results = dedupe_items(raw_cards, pool_size)
     candidates = len(results)
 
@@ -1443,8 +1473,12 @@ def collect_results_from_page(page, count, pool_size):
         for _ in range(2):
             page.mouse.wheel(0, 900)
             page.wait_for_timeout(500)
+            scroll_to_main_feed_toolbar(page)
             raw_cards = extract_cards(page, pool_size)
             selector_matches = page.locator(CARD_SELECTOR).count()
+            if (_LAST_EXTRACTION_METRICS or {}).get("toolbar_boundary_y", 0) >= 999999:
+                log("toolbar_boundary_y unavailable after toolbar scroll; rejecting extraction candidates")
+                return raw_cards, [], selector_matches, 0
             results = dedupe_items(raw_cards, pool_size)
             candidates = len(results)
             if len(results) >= min(count, pool_size):
@@ -1547,6 +1581,10 @@ def fetch_trending(count=15):
                     log(f"only {visible_cards} visible postDetail cards after load wait; continuing with fallback paths")
 
                 debug_probe_page(page, f"desktop-after-load-{attempt}")
+                if scroll_to_main_feed_toolbar(page):
+                    log("main feed toolbar scrolled into view before filters")
+                else:
+                    log("main feed toolbar not found before filters")
                 filter_status = apply_filters(page, context)
                 extraction_page = page
 
@@ -1572,6 +1610,10 @@ def fetch_trending(count=15):
                             log(f"only {mobile_visible_cards} visible mobile postDetail cards after load wait")
                         mobile_page.wait_for_timeout(1500)
                         debug_probe_page(mobile_page, f"mobile-after-load-{attempt}")
+                        if scroll_to_main_feed_toolbar(mobile_page):
+                            log("mobile main feed toolbar scrolled into view before filters")
+                        else:
+                            log("mobile main feed toolbar not found before filters")
                         mobile_filter_status = apply_filters(mobile_page, mobile_context)
                         if not mobile_filter_status.get("content_changed"):
                             try_url_filter_probe(mobile_page, mobile_filter_status)
