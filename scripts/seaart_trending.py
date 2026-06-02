@@ -502,15 +502,51 @@ def feed_fingerprint(page):
                         box.width > 0 &&
                         box.height > 0;
                 };
+                const normalizeText = (el) => (el?.innerText || el?.textContent || '')
+                    .trim()
+                    .replace(/\\s+/g, ' ');
+
+                const findFeedBoundaryY = () => {
+                    const toolbarContainers = Array.from(document.querySelectorAll('body *'))
+                        .filter((el) => {
+                            if (!visible(el)) return false;
+                            if (el.closest('footer')) return false;
+                            const box = el.getBoundingClientRect();
+                            const className = String(el.className || '');
+                            const text = normalizeText(el);
+                            return /(^|\\s)(my-)?filter-form-box(\\s|$)|right-filter-box|select-filter-box/i.test(className) &&
+                                /filter|sort\\s*by|recommended|hot|new|week|months?/i.test(text) &&
+                                box.height > 0 &&
+                                box.height < 180 &&
+                                box.width > 40 &&
+                                box.top + window.scrollY > 80;
+                        })
+                        .map((el) => {
+                            const box = el.getBoundingClientRect();
+                            return box.bottom + window.scrollY;
+                        })
+                        .sort((a, b) => a - b);
+                    return toolbarContainers[0] || 0;
+                };
 
                 const links = [...document.querySelectorAll('a[href*="postDetail"]')]
                     .filter(visible);
-                const candidates = links
+                const boundaryY = findFeedBoundaryY();
+                let candidates = links
                     .filter(a => {
                         const box = a.getBoundingClientRect();
+                        const top = box.top + window.scrollY;
                         return box.width >= 50 && box.height >= 50 &&
-                            box.top + window.scrollY > 80;
+                            top > Math.max(80, boundaryY + 50);
                     });
+                if (candidates.length < 5) {
+                    candidates = links
+                        .filter(a => {
+                            const box = a.getBoundingClientRect();
+                            return box.width >= 50 && box.height >= 50 &&
+                                box.top + window.scrollY > 80;
+                        });
+                }
 
                 return candidates.slice(0, 5).map((a) => ({
                         href: a.href,
@@ -697,6 +733,211 @@ def click_visible_filter_button(page):
         return False
 
 
+def click_toolbar_sort_dropdown(page, target="Hot"):
+    """Find and click the toolbar sort dropdown, then select the target sort."""
+
+    target_event = {
+        "Recommended": "dropdown-item-recommend",
+        "Hot": "dropdown-item-hot",
+        "New": "dropdown-item-new",
+        "Follow": "dropdown-item-follows",
+    }.get(target, "dropdown-item-hot")
+
+    # Strategy 0: SeaArt's desktop toolbar uses Element UI dropdown markup inside
+    # right-filter-box. Click that control first, then its own dropdown item.
+    try:
+        dropdown = page.locator(".right-filter-box .my-select-box .el-dropdown-link").first
+        if dropdown.is_visible(timeout=1500):
+            box = dropdown.bounding_box()
+            current_text = clean_text(dropdown.inner_text())
+            dropdown.click()
+            page.wait_for_timeout(1000)
+            log(f"toolbar sort: opened right-filter-box dropdown text='{current_text}' box={box}")
+
+            item = page.locator(
+                f".right-filter-box [data-event='{target_event}'], "
+                f".el-dropdown-menu [data-event='{target_event}']"
+            ).first
+            if item.is_visible(timeout=3000):
+                item_box = item.bounding_box()
+                item.click()
+                page.wait_for_timeout(2000)
+                log(f"toolbar sort: clicked '{target}' menu item box={item_box}")
+                return True
+
+            if target.lower() in current_text.lower():
+                log(f"toolbar sort: target '{target}' is already selected in right-filter-box")
+                return True
+            log(f"toolbar sort: '{target}' menu item not visible after opening right-filter-box dropdown")
+    except Exception as e:
+        log(f"toolbar sort strategy 0 failed: {e}")
+
+    def click_target_option(opened_label, opened_box):
+        try:
+            target_options = page.get_by_text(target, exact=True)
+            visible_options = []
+            for i in range(min(target_options.count(), 20)):
+                option = target_options.nth(i)
+                try:
+                    if not option.is_visible():
+                        continue
+                    box = option.bounding_box()
+                    if not box:
+                        continue
+                    text = clean_text(option.inner_text())
+                    if text.lower() != target.lower():
+                        continue
+                    if box["height"] >= 70 or box["width"] < 10:
+                        continue
+                    # The selected menu item may be in a popover below the toolbar, or the
+                    # toolbar itself when the current sort is already the target.
+                    if box["y"] < 50 or box["y"] > 600:
+                        continue
+                    if opened_box and abs(box["x"] - opened_box["x"]) < 3 and abs(box["y"] - opened_box["y"]) < 3:
+                        continue
+                    visible_options.append((box["y"], box["x"], option, box))
+                except Exception:
+                    continue
+            if not visible_options and opened_label.lower() == target.lower():
+                log(f"toolbar sort: target '{target}' is already selected")
+                return True
+            if visible_options:
+                visible_options.sort(key=lambda item: (item[0], item[1]))
+                _, _, option, box = visible_options[0]
+                option.click()
+                page.wait_for_timeout(2000)
+                log(f"toolbar sort: clicked target '{target}' at y={box['y']}")
+                return True
+        except Exception as e:
+            log(f"toolbar sort target selector failed: {e}")
+
+        try:
+            target_node = page.evaluate(
+                """({target, openedBox}) => {
+                    const visible = (el) => {
+                        const style = window.getComputedStyle(el);
+                        const box = el.getBoundingClientRect();
+                        return style.visibility !== 'hidden' &&
+                            style.display !== 'none' &&
+                            box.width > 0 &&
+                            box.height > 0;
+                    };
+                    const targetLower = target.toLowerCase();
+                    const openedX = openedBox ? openedBox.x : -9999;
+                    const openedY = openedBox ? openedBox.y : -9999;
+                    return [...document.querySelectorAll('div, span, button, [role="button"], li')]
+                        .filter((el) => {
+                            if (!visible(el)) return false;
+                            if (el.closest('a[href*="postDetail"]')) return false;
+                            if (el.closest('[class*="filter" i]') && /filter|time\\s*range|apply|confirm/i.test(el.closest('[class*="filter" i]').innerText || '')) return false;
+                            const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ');
+                            const box = el.getBoundingClientRect();
+                            if (text.toLowerCase() !== targetLower) return false;
+                            if (box.height >= 70 || box.width < 10) return false;
+                            if (box.top + window.scrollY < 50 || box.top + window.scrollY > 600) return false;
+                            if (Math.abs((box.x + window.scrollX) - openedX) < 3 &&
+                                Math.abs((box.y + window.scrollY) - openedY) < 3) return false;
+                            return true;
+                        })
+                        .map((el) => {
+                            const box = el.getBoundingClientRect();
+                            return {
+                                x: box.x + box.width / 2,
+                                y: box.y + box.height / 2,
+                                top: box.top + window.scrollY,
+                                text: (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' '),
+                            };
+                        })
+                        .sort((a, b) => a.top - b.top)[0] || null;
+                }""",
+                {"target": target, "openedBox": opened_box},
+            )
+            if target_node:
+                page.mouse.click(target_node["x"], target_node["y"])
+                page.wait_for_timeout(2000)
+                log(f"toolbar sort: clicked target '{target_node['text']}' via DOM fallback at y={target_node['top']}")
+                return True
+        except Exception as e:
+            log(f"toolbar sort target DOM fallback failed: {e}")
+
+        return False
+
+    # Strategy 1: exact visible sort labels in the toolbar zone.
+    try:
+        for label in ["Recommended", "Hot", "New", "Follow"]:
+            try:
+                elements = page.get_by_text(label, exact=True)
+                for i in range(min(elements.count(), 20)):
+                    el = elements.nth(i)
+                    try:
+                        if not el.is_visible():
+                            continue
+                        box = el.bounding_box()
+                        if not box:
+                            continue
+                        text = clean_text(el.inner_text())
+                        if text.lower() != label.lower():
+                            continue
+                        if box["y"] < 50 or box["y"] >= 250 or box["height"] >= 50:
+                            continue
+                        el.click()
+                        page.wait_for_timeout(2000)
+                        log(f"toolbar sort: clicked '{label}' at y={box['y']}")
+                        return click_target_option(label, box)
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+    except Exception as e:
+        log(f"toolbar sort strategy 1 failed: {e}")
+
+    # Strategy 2: DOM scan for compact sort controls near the top of the page.
+    try:
+        candidates = page.evaluate(
+            """() => {
+                const visible = (el) => {
+                    const s = window.getComputedStyle(el);
+                    const b = el.getBoundingClientRect();
+                    return s.visibility !== 'hidden' && s.display !== 'none' && b.width > 0 && b.height > 0;
+                };
+                return [...document.querySelectorAll('div, span, button, [role="button"]')]
+                    .filter(el => {
+                        if (!visible(el)) return false;
+                        if (el.closest('a[href*="postDetail"]')) return false;
+                        if (el.closest('[class*="filter" i]') && /filter|time\\s*range|apply|confirm/i.test(el.closest('[class*="filter" i]').innerText || '')) return false;
+                        const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const box = el.getBoundingClientRect();
+                        if (box.top + window.scrollY > 250 || box.top + window.scrollY < 50) return false;
+                        if (box.height >= 50 || box.width < 20 || box.width > 240) return false;
+                        return /^(Recommended|Hot|New|Follow)$/i.test(text);
+                    })
+                    .map(el => {
+                        const box = el.getBoundingClientRect();
+                        return {
+                            text: (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' '),
+                            tag: el.tagName,
+                            x: box.x + window.scrollX,
+                            y: box.top + window.scrollY,
+                            clickX: box.x + box.width / 2,
+                            clickY: box.y + box.height / 2,
+                            className: String(el.className || '')
+                        };
+                    })
+                    .sort((a, b) => a.y - b.y || a.x - b.x);
+            }"""
+        )
+        if candidates:
+            top = candidates[0]
+            log(f"toolbar sort candidate found: text='{top['text']}' tag={top['tag']} y={top['y']}")
+            page.mouse.click(top["clickX"], top["clickY"])
+            page.wait_for_timeout(2000)
+            return click_target_option(top["text"], {"x": top["x"], "y": top["y"]})
+    except Exception as e:
+        log(f"toolbar sort strategy 2 failed: {e}")
+
+    return False
+
+
 def click_filter_option(page, label, exact=True):
     try:
         options = page.get_by_text(label, exact=exact)
@@ -868,14 +1109,14 @@ def dismiss_filter_sheet(page):
 
 
 def apply_filters(page, context=None):
-    """Try to open SeaArt filter sheet and select sort/period options.
-    Returns dict with status fields."""
+    """Apply the toolbar sort first, then optionally refine with the filter sheet."""
     result = {
         "filter_sheet_opened": False,
-        "sort_applied": False,
-        "period_applied": False,
-        "sort_value": None,
-        "period_value": None,
+        "toolbar_sort_found": False,
+        "toolbar_hot_clicked": False,
+        "toolbar_sort_content_changed": False,
+        "week_clicked": False,
+        "week_content_changed": False,
         "content_changed": False,
         "quality": "default_feed",
         "warning": "",
@@ -890,76 +1131,85 @@ def apply_filters(page, context=None):
     before_fp = fingerprint_json(before_fingerprint)
     result["before_fingerprint"] = before_fingerprint
     log(f"before_fingerprint_ids={fingerprint_ids(before_fingerprint)}")
-    save_debug_screenshot(page, "filter-before")
-    save_debug_screenshot(page, "before-filter")
-    debug_probe_page(page, "filter-probe-before")
+    save_debug_screenshot(page, "01-initial-page")
+    debug_probe_page(page, "01-initial-page-probe")
+
+    if SEAART_SORT == "hot":
+        toolbar_sort_found = click_toolbar_sort_dropdown(page, "Hot")
+        result["toolbar_sort_found"] = toolbar_sort_found
+        if toolbar_sort_found:
+            result["toolbar_hot_clicked"] = True
+            try:
+                wait_for_fingerprint_change(page, before_fp, 15000)
+                result["toolbar_sort_content_changed"] = True
+                result["content_changed"] = True
+                result["quality"] = "hot_only"
+                log("toolbar: Hot changed content")
+            except Exception as e:
+                log(f"toolbar: Hot did not change content: {e}")
+        else:
+            log("toolbar: sort dropdown not found")
+    else:
+        log(f"toolbar: unsupported toolbar sort target '{SEAART_SORT}', skipping")
+
+    save_debug_screenshot(page, "02-after-toolbar-hot")
 
     if click_visible_filter_button(page):
         result["filter_sheet_opened"] = True
         log("filter_sheet_opened=true")
-        save_debug_screenshot(page, "filter-open")
-        debug_probe_page(page, "filter-probe-after-open")
+        save_debug_screenshot(page, "03-filter-sheet-open")
+        debug_probe_page(page, "03-filter-sheet-open-probe")
+
+        period_value, period_labels = option_labels_for_period(SEAART_PERIOD)
+        if period_value == "week":
+            period_labels = ["Week"]
+        for period_label in period_labels:
+            try:
+                if click_filter_option(page, period_label, exact=True):
+                    result["week_clicked"] = True
+                    log(f"filter: {period_label} clicked")
+                    break
+            except Exception:
+                pass
+
+        if not result["week_clicked"]:
+            log(f"filter: period option not visible in filter sheet: {period_value}")
+
+        applied = click_filter_apply_button(page)
+        if not applied:
+            dismiss_filter_sheet(page)
+
+        after_fp = feed_fingerprint(page)
+        after_fp_json = fingerprint_json(after_fp)
+        if after_fp_json != before_fp:
+            if result["week_clicked"]:
+                result["week_content_changed"] = True
+                result["content_changed"] = True
+                result["quality"] = "hot_week"
+                log("filter: Week changed content")
+            elif result["content_changed"]:
+                log("filter: fingerprint remains changed after sheet dismissal")
+        else:
+            log("filter: Week did not change content")
     else:
-        log("filter_sheet_opened=false fallback_default_feed=true reason='filter button not found'")
-        after_fingerprint = feed_fingerprint(page)
-        result["after_fingerprint"] = after_fingerprint
-        result["warning"] = "filter button not found; using default feed"
-        log(f"after_fingerprint_ids={fingerprint_ids(after_fingerprint)}")
-        log("content_changed=false quality=default_feed warning='filter button not found; using default feed'")
-        return result
-
-    sort_label = SEAART_SORT.title()
-    if click_filter_option(page, sort_label, exact=True):
-        result["sort_applied"] = True
-        result["sort_value"] = SEAART_SORT
-        log(f"sort option selected: {sort_label}")
-        save_debug_screenshot(page, "filter-after-sort")
-    else:
-        log(f"sort option not visible in filter sheet: {sort_label}")
-
-    period_value, period_labels = option_labels_for_period(SEAART_PERIOD)
-    for period_label in period_labels:
-        if click_filter_option(page, period_label, exact=True):
-            result["period_applied"] = True
-            result["period_value"] = period_value
-            log(f"period option selected: {period_label}")
-            save_debug_screenshot(page, "filter-after-period")
-            break
-
-    if not result["period_applied"]:
-        log(f"period option not visible in filter sheet: {period_value}")
-
-    click_filter_apply_button(page)
-
-    try:
-        page.wait_for_selector(CARD_SELECTOR, timeout=10000)
-        wait_for_fingerprint_change(page, before_fp, 15000)
-        result["content_changed"] = True
-        result["quality"] = "hot_week"
-        log("cards changed after filter step")
-    except Exception as e:
-        log(f"filter: content did not change before dismissing filter UI: {e}")
-        dismiss_filter_sheet(page)
-        try:
-            page.wait_for_selector(CARD_SELECTOR, timeout=5000)
-            wait_for_fingerprint_change(page, before_fp, 5000)
-            result["content_changed"] = True
-            result["quality"] = "hot_week"
-            log("cards changed after filter UI dismiss")
-        except Exception as dismiss_error:
-            result["warning"] = "filter did not change content; using default feed"
-            log(f"filter: content did not change after Hot/Week selection: {dismiss_error}")
+        log("filter: could not open filter sheet")
 
     after_fingerprint = feed_fingerprint(page)
     result["after_fingerprint"] = after_fingerprint
     log(f"after_fingerprint_ids={fingerprint_ids(after_fingerprint)}")
-    if result["content_changed"]:
-        log("content_changed=true quality=hot_week")
-    else:
-        log("content_changed=false quality=default_feed warning='filter did not change content; using default feed'")
+    log(
+        "toolbar_sort_found={toolbar_sort_found} toolbar_hot_clicked={toolbar_hot_clicked} "
+        "toolbar_sort_content_changed={toolbar_sort_content_changed}".format(**result)
+    )
+    log(
+        "filter_sheet_opened={filter_sheet_opened} week_clicked={week_clicked} "
+        "week_content_changed={week_content_changed}".format(**result)
+    )
+    if not result["content_changed"]:
+        result["warning"] = "filter did not change content; using default feed"
+    log(f"content_changed={str(result['content_changed']).lower()} quality={result['quality']}")
 
-    save_debug_screenshot(page, "filter-after-applied")
-    save_debug_screenshot(page, "filter-after-apply")
+    save_debug_screenshot(page, "04-before-extraction")
     return result
 
 
@@ -1048,6 +1298,11 @@ def metric_counts(raw_cards, items, selector_matches=None, candidates=None, filt
         "sort": SEAART_SORT,
         "period": SEAART_PERIOD,
         "filter_sheet_opened": filter_status.get("filter_sheet_opened", False),
+        "toolbar_sort_found": filter_status.get("toolbar_sort_found", False),
+        "toolbar_hot_clicked": filter_status.get("toolbar_hot_clicked", False),
+        "toolbar_sort_content_changed": filter_status.get("toolbar_sort_content_changed", False),
+        "week_clicked": filter_status.get("week_clicked", False),
+        "week_content_changed": filter_status.get("week_content_changed", False),
         "sort_applied": filter_status.get("sort_applied", False),
         "period_applied": filter_status.get("period_applied", False),
         "content_changed": filter_status.get("content_changed", False),
@@ -1084,7 +1339,9 @@ def log_metrics(metrics):
     )
     print(
         "[SeaArt] sort={sort} period={period} filter_sheet_opened={filter_sheet_opened} "
-        "sort_applied={sort_applied} period_applied={period_applied} "
+        "toolbar_sort_found={toolbar_sort_found} toolbar_hot_clicked={toolbar_hot_clicked} "
+        "toolbar_sort_content_changed={toolbar_sort_content_changed} week_clicked={week_clicked} "
+        "week_content_changed={week_content_changed} sort_applied={sort_applied} period_applied={period_applied} "
         "content_changed={content_changed} quality={quality} pool={pool_size} "
         "candidates={candidates} items={items} images={images} titles={titles} authors={authors} "
         "likes_nonzero={likes_nonzero} top_likes={top_likes} "
@@ -1154,6 +1411,44 @@ def collect_results_from_page(page, count, pool_size):
     return raw_cards, results[:count], selector_matches, candidates
 
 
+def try_url_filter_probe(page, filter_status):
+    """Fallback probe for SeaArt query parameters when UI filters do not mutate the feed."""
+    if SEAART_SORT != "hot" or SEAART_PERIOD != "week":
+        return False
+
+    before_fingerprint = filter_status.get("before_fingerprint") or []
+    if not before_fingerprint:
+        log("URL filter probe skipped: no baseline fingerprint")
+        return False
+
+    before_fp = fingerprint_json(before_fingerprint)
+    test_urls = [
+        "https://www.seaart.ai/post?sort=hot&period=week",
+        "https://www.seaart.ai/post?sortBy=hot&timeRange=week",
+    ]
+    for url in test_urls:
+        try:
+            log(f"URL filter probe loading {url}")
+            page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            wait_for_cards(page, min_count=5)
+            fp = feed_fingerprint(page)
+            fp_json = fingerprint_json(fp)
+            if len(fp) >= 5:
+                log(f"URL {url} returned {len(fp)} cards")
+                filter_status["after_fingerprint"] = fp
+                log(f"url_probe_fingerprint_ids={fingerprint_ids(fp)}")
+                if fp_json != before_fp:
+                    filter_status["content_changed"] = True
+                    filter_status["quality"] = "hot_week"
+                    filter_status["warning"] = ""
+                    log("URL filter probe changed content")
+                    return True
+        except Exception as e:
+            log(f"URL filter probe failed for {url}: {e}")
+
+    return False
+
+
 def fetch_trending(count=15):
     """Fetch trending posts from SeaArt by scraping rendered DOM cards."""
     global _LAST_METRICS
@@ -1167,10 +1462,14 @@ def fetch_trending(count=15):
     selector_matches = 0
     filter_status = {
         "filter_sheet_opened": False,
-        "sort_applied": False,
-        "period_applied": False,
-        "sort_value": None,
-        "period_value": None,
+        "toolbar_sort_found": False,
+        "toolbar_hot_clicked": False,
+        "toolbar_sort_content_changed": False,
+        "week_clicked": False,
+        "week_content_changed": False,
+        "content_changed": False,
+        "quality": "default_feed",
+        "warning": "",
     }
     artifact_page = None
 
@@ -1197,16 +1496,19 @@ def fetch_trending(count=15):
                 except Exception as e:
                     error = f"post cards did not appear: {e}"
                     log(error)
-                visible_cards = wait_for_cards(page, min_count=1, attempts=10, scroll=True)
-                if visible_cards == 0:
-                    log("no visible postDetail cards after load wait; continuing with default feed fallback")
+                visible_cards = wait_for_cards(page, min_count=5, attempts=15, scroll=True)
+                if visible_cards < 5:
+                    log(f"only {visible_cards} visible postDetail cards after load wait; continuing with fallback paths")
 
                 debug_probe_page(page, f"desktop-after-load-{attempt}")
                 filter_status = apply_filters(page, context)
                 extraction_page = page
 
-                if not filter_status.get("filter_sheet_opened"):
-                    log("desktop filter failed; retrying with mobile browser context")
+                if not filter_status.get("content_changed"):
+                    try_url_filter_probe(page, filter_status)
+
+                if not filter_status.get("content_changed"):
+                    log("desktop filter did not change content; retrying with mobile browser context")
                     try:
                         mobile_context = new_mobile_context(browser)
                         mobile_page = mobile_context.new_page()
@@ -1217,20 +1519,22 @@ def fetch_trending(count=15):
                         except Exception as e:
                             log(f"mobile post cards did not appear: {e}")
                         mobile_visible_cards = wait_for_cards(
-                            mobile_page, min_count=1, attempts=10, scroll=True
+                            mobile_page, min_count=5, attempts=15, scroll=True
                         )
-                        if mobile_visible_cards == 0:
-                            log("no visible mobile postDetail cards after load wait")
+                        if mobile_visible_cards < 5:
+                            log(f"only {mobile_visible_cards} visible mobile postDetail cards after load wait")
                         mobile_page.wait_for_timeout(1500)
                         debug_probe_page(mobile_page, f"mobile-after-load-{attempt}")
                         mobile_filter_status = apply_filters(mobile_page, mobile_context)
-                        if mobile_filter_status.get("filter_sheet_opened"):
-                            log("mobile filter opened successfully; extracting from mobile page")
+                        if not mobile_filter_status.get("content_changed"):
+                            try_url_filter_probe(mobile_page, mobile_filter_status)
+                        if mobile_filter_status.get("content_changed"):
+                            log("mobile filter changed content; extracting from mobile page")
                             filter_status = mobile_filter_status
                             extraction_page = mobile_page
                             artifact_page = mobile_page
                         else:
-                            log("mobile filter failed; falling back to default desktop feed")
+                            log("mobile filter did not change content; falling back to default desktop feed")
                             mobile_context.close()
                     except Exception as e:
                         log(f"mobile context filter retry failed: {e}")
