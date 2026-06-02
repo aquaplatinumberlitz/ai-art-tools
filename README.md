@@ -104,7 +104,7 @@ By default, the SeaArt scraper runs anonymously. If you want the scraped feed to
 
 1. Run the login helper:
    ```bash
-   python3 scripts/seaart_login.py
+   python3 scripts/auth/seaart_login.py
    ```
    This opens a headed browser. Log in manually, then press Enter.
 
@@ -136,8 +136,8 @@ Linux/Mac:
 
 3. Export one site or all allowlisted sites:
    ```bash
-   python3 scripts/export_browser_state_from_chrome.py --site civitai
-   python3 scripts/export_browser_state_from_chrome.py --all
+   python3 scripts/auth/export_browser_state_from_chrome.py --site civitai
+   python3 scripts/auth/export_browser_state_from_chrome.py --all
    ```
 
 Windows PowerShell:
@@ -151,14 +151,14 @@ Windows PowerShell:
 
 3. Export one site or all allowlisted sites:
    ```powershell
-   python scripts\export_browser_state_from_chrome.py --site civitai
-   python scripts\export_browser_state_from_chrome.py --all
+   python scripts\auth\export_browser_state_from_chrome.py --site civitai
+   python scripts\auth\export_browser_state_from_chrome.py --all
    ```
 
 By default, files are written to `~/.hermes/references/` on Linux/Mac. On Windows, when `HERMES_REFERENCES_DIR` is not set, files are written to `%USERPROFILE%/hermes-auth-export/`. You can override the output directory with `HERMES_REFERENCES_DIR` and the local CDP URL with `CHROME_CDP_URL`:
 
 ```bash
-HERMES_REFERENCES_DIR=/home/ubuntu/.hermes/references CHROME_CDP_URL=http://127.0.0.1:9222 python3 scripts/export_browser_state_from_chrome.py --site huggingface
+HERMES_REFERENCES_DIR=/home/ubuntu/.hermes/references CHROME_CDP_URL=http://127.0.0.1:9222 python3 scripts/auth/export_browser_state_from_chrome.py --site huggingface
 ```
 
 State files are private. Do not commit them or share them.
