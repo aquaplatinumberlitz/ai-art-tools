@@ -319,91 +319,99 @@ def extract_cards(page, limit):
                 return false;
             };
 
+            const hasUpperSectionParentText = (link) => {
+                const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|campaign\\s+featured|achievement|milestone/i;
+                const toolbarPattern = /Trending|Seedance|GPT image|Featured Topics|Short Film|Pro Tips|Viral Clips|\\bHot\\b|\\bFilter\\b/i;
+                let el = link.parentElement;
+                let depth = 0;
+                while (el && el !== document.body && depth < 8) {
+                    const box = el.getBoundingClientRect();
+                    const text = normalizeText(el);
+                    if (box.height < 2200 && upperPattern.test(text) && !toolbarPattern.test(text)) {
+                        return true;
+                    }
+                    el = el.parentElement;
+                    depth++;
+                }
+                return false;
+            };
+
             const findFeedBoundaryY = () => {
-                const toolbarEl = document.querySelector('.my-filter-form-box .filter-form-box, .filter-form-box');
-                if (toolbarEl) {
-                    const tb = toolbarEl.getBoundingClientRect();
-                    return Math.round(tb.bottom + window.scrollY);
+                const toolbarTerms = [
+                    'Trending',
+                    'Seedance',
+                    'GPT image',
+                    'Featured Topics',
+                    'Short Film',
+                    'Pro Tips',
+                    'Viral Clips',
+                    'Hot',
+                    'Filter',
+                ];
+                const popoverSelector = '.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]';
+                const isToolbarCandidate = (el) => {
+                    if (!el || !visible(el)) return false;
+                    if (el.closest(popoverSelector)) return false;
+                    if (el.closest('footer')) return false;
+                    if (el.closest('a[href*="postDetail"]')) return false;
+                    const box = el.getBoundingClientRect();
+                    if (box.height < 20 || box.height > 180 || box.width < 80) return false;
+                    const text = normalizeText(el);
+                    const hits = toolbarTerms.filter(term => text.toLowerCase().includes(term.toLowerCase())).length;
+                    return hits >= 2 || (/\\b(Hot|Filter)\\b/i.test(text) && hits >= 1);
+                };
+
+                const classCandidates = Array.from(document.querySelectorAll('.my-filter-form-box .filter-form-box, .filter-form-box'))
+                    .filter(isToolbarCandidate)
+                    .sort((a, b) => {
+                        const ab = a.getBoundingClientRect();
+                        const bb = b.getBoundingClientRect();
+                        return (ab.top + window.scrollY) - (bb.top + window.scrollY);
+                    });
+                if (classCandidates.length) {
+                    const tb = classCandidates[0].getBoundingClientRect();
+                    return Math.round(tb.bottom + window.scrollY + 10);
                 }
 
-                const toolbarContainers = Array.from(document.querySelectorAll('body *'))
+                const termNodes = Array.from(document.querySelectorAll('button, [role="button"], a, span, div'))
                     .filter((el) => {
                         if (!visible(el)) return false;
+                        if (el.closest(popoverSelector)) return false;
                         if (el.closest('footer')) return false;
-                        if (el.closest('.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]')) return false;
-                        const box = el.getBoundingClientRect();
-                        const className = String(el.className || '');
-                        const text = normalizeText(el);
-                        return /(^|\\s)(my-)?filter-form-box(\\s|$)|right-filter-box|select-filter-box|filter-box/i.test(className) &&
-                            /filter|sort\\s*by|time\\s*range|recommended|hot|new|week|months?/i.test(text) &&
-                            box.height > 0 &&
-                            box.height < 160 &&
-                            box.width > 40 &&
-                            box.top + window.scrollY > 80;
-                    })
-                    .map((el) => {
-                        const box = el.getBoundingClientRect();
-                        return {
-                            y: box.bottom + window.scrollY,
-                            x: box.x,
-                            area: box.width * box.height,
-                        };
-                    })
-                    .sort((a, b) => a.y - b.y || b.area - a.area || a.x - b.x);
-                if (toolbarContainers.length) {
-                    return Math.round(toolbarContainers[0].y);
-                }
-
-                const filterButtons = Array.from(document.querySelectorAll('button, [role="button"]'))
-                    .filter((el) => {
-                        if (!visible(el)) return false;
-                        if (el.closest('footer')) return false;
-                        if (el.closest('.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]')) return false;
-                        const text = normalizeText(el);
-                        const box = el.getBoundingClientRect();
-                        return /^Filter$/i.test(text) &&
-                            box.height > 0 &&
-                            box.height < 90 &&
-                            box.width >= 40 &&
-                            box.top + window.scrollY > 80;
-                    })
-                    .map((el) => {
-                        const box = el.getBoundingClientRect();
-                        return {
-                            y: box.bottom + window.scrollY,
-                            x: box.x,
-                            area: box.width * box.height,
-                        };
-                    })
-                    .sort((a, b) => a.y - b.y || b.x - a.x || a.area - b.area);
-                if (filterButtons.length) {
-                    return Math.round(filterButtons[0].y);
-                }
-
-                const topicChips = Array.from(document.querySelectorAll('button, [role="button"], a, span'))
-                    .filter((el) => {
-                        if (!visible(el)) return false;
-                        if (el.closest('footer')) return false;
-                        if (el.closest('.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]')) return false;
                         if (el.closest('a[href*="postDetail"]')) return false;
                         const text = normalizeText(el);
                         const box = el.getBoundingClientRect();
-                        return /Trending|Featured|Topics|Short Film|Pro Tips|Seedance|GPT image/i.test(text) &&
-                            text.length <= 90 &&
+                        return toolbarTerms.some(term => text.toLowerCase().includes(term.toLowerCase())) &&
+                            text.length <= 180 &&
                             box.height > 0 &&
-                            box.height < 72 &&
-                            box.width > 20 &&
-                            box.width < 360 &&
-                            box.top + window.scrollY > 80;
-                    })
-                    .map((el) => {
-                        const box = el.getBoundingClientRect();
-                        return box.bottom + window.scrollY;
-                    })
-                    .sort((a, b) => a - b);
-                if (topicChips.length) {
-                        return Math.round(topicChips[0]);
+                            box.height <= 90 &&
+                            box.width >= 20;
+                    });
+                const containers = [];
+                for (const node of termNodes) {
+                    let el = node;
+                    let depth = 0;
+                    while (el && el !== document.body && depth < 6) {
+                        if (isToolbarCandidate(el)) {
+                            containers.push(el);
+                            break;
+                        }
+                        el = el.parentElement;
+                        depth++;
                     }
+                }
+                const unique = Array.from(new Set(containers))
+                    .sort((a, b) => {
+                        const ab = a.getBoundingClientRect();
+                        const bb = b.getBoundingClientRect();
+                        const ay = ab.top + window.scrollY;
+                        const by = bb.top + window.scrollY;
+                        return ay - by || (ab.width * ab.height) - (bb.width * bb.height);
+                    });
+                if (unique.length) {
+                    const tb = unique[0].getBoundingClientRect();
+                    return Math.round(tb.bottom + window.scrollY + 10);
+                }
 
                 return 0;
             };
@@ -420,16 +428,6 @@ def extract_cards(page, limit):
                 else yBands.above_1500++;
             }
             metrics.toolbar_boundary_y = findFeedBoundaryY();
-            if (!metrics.toolbar_boundary_y || metrics.toolbar_boundary_y < 200) {
-                // Fallback: use first visible card below 200px as boundary
-                const firstLow = links.filter(a => {
-                    const t = a.getBoundingClientRect().top + window.scrollY;
-                    return t > 200;
-                });
-                metrics.toolbar_boundary_y = firstLow.length
-                    ? Math.round(firstLow[0].getBoundingClientRect().top + window.scrollY - 30)
-                    : 999999;
-            }
 
             for (const link of links) {
                 const rect = link.getBoundingClientRect();
@@ -437,9 +435,12 @@ def extract_cards(page, limit):
                 let included = false;
                 let excludeReason = "";
 
-                if (absTop <= metrics.toolbar_boundary_y + 50) {
+                if (!metrics.toolbar_boundary_y || absTop <= metrics.toolbar_boundary_y + 50) {
                     metrics.excluded_above_toolbar += 1;
                     excludeReason = "above_toolbar";
+                } else if (hasUpperSectionParentText(link)) {
+                    metrics.excluded_upper_section += 1;
+                    excludeReason = "upper_section_parent_text";
                 } else if (isUpperSection(link)) {
                     metrics.excluded_upper_section += 1;
                     excludeReason = "upper_section";
@@ -536,46 +537,123 @@ def option_labels_for_period(period):
 
 
 def scroll_to_main_feed_toolbar(page) -> bool:
-    """Scroll page to bring the main feed toolbar (chip row) into view."""
+    """Scroll page to bring the real main feed toolbar to the viewport top."""
     box = page.evaluate("""
         () => {
+            const toolbarTerms = [
+                'Trending',
+                'Seedance',
+                'GPT image',
+                'Featured Topics',
+                'Short Film',
+                'Pro Tips',
+                'Viral Clips',
+                'Hot',
+                'Filter',
+            ];
+            const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|campaign\\s+featured|achievement|milestone/i;
+            const popoverSelector = '.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]';
             const visible = (el) => {
                 const s = window.getComputedStyle(el);
                 const b = el.getBoundingClientRect();
-                return s.visibility !== 'hidden' && s.display !== 'none' && b.width > 0 && b.height > 0;
+                return s.visibility !== 'hidden' &&
+                    s.display !== 'none' &&
+                    b.width > 0 &&
+                    b.height > 0;
             };
-            const chips = [...document.querySelectorAll('button, div, span, a')]
-                .filter(el => {
-                    if (!visible(el)) return false;
-                    if (el.closest('a[href*="postDetail"]')) return false;
-                    const text = (el.innerText || el.textContent || '').trim();
-                    return /Trending|Featured Topics|Short Film|Pro Tips|Viral Clips|GPT image|Seedance/i.test(text);
-                });
-            if (chips.length) {
-                const box = chips[0].getBoundingClientRect();
-                return {x: box.x, y: box.y, top: box.top + window.scrollY};
+            const normalizeText = (el) => (el?.innerText || el?.textContent || '')
+                .trim()
+                .replace(/\\s+/g, ' ');
+            const insideUpperSection = (el) => {
+                let cur = el;
+                let depth = 0;
+                while (cur && cur !== document.body && depth < 8) {
+                    const box = cur.getBoundingClientRect();
+                    const text = normalizeText(cur);
+                    const hasToolbarText = toolbarTerms.some(term => text.toLowerCase().includes(term.toLowerCase()));
+                    if (upperPattern.test(text) && !hasToolbarText && box.height < 2200) return true;
+                    cur = cur.parentElement;
+                    depth++;
+                }
+                return false;
+            };
+            const validToolbar = (el) => {
+                if (!el || !visible(el)) return false;
+                if (el.closest(popoverSelector)) return false;
+                if (el.closest('footer')) return false;
+                if (el.closest('a[href*="postDetail"]')) return false;
+                if (insideUpperSection(el)) return false;
+                const box = el.getBoundingClientRect();
+                if (box.height < 20 || box.height > 180 || box.width < 120) return false;
+                const text = normalizeText(el);
+                const hits = toolbarTerms.filter(term => text.toLowerCase().includes(term.toLowerCase())).length;
+                return hits >= 2 || (/\\b(Filter|Hot)\\b/i.test(text) && hits >= 1);
+            };
+
+            const classCandidates = Array.from(document.querySelectorAll('.my-filter-form-box .filter-form-box, .filter-form-box'))
+                .filter(validToolbar);
+            if (classCandidates.length) {
+                const el = classCandidates
+                    .sort((a, b) => (a.getBoundingClientRect().top + window.scrollY) - (b.getBoundingClientRect().top + window.scrollY))[0];
+                const b = el.getBoundingClientRect();
+                return {top: Math.max(0, Math.round(b.top + window.scrollY))};
             }
-            const filters = [...document.querySelectorAll('button, div, span')]
-                .filter(el => {
+
+            const termNodes = Array.from(document.querySelectorAll('button, [role="button"], a, span, div'))
+                .filter((el) => {
                     if (!visible(el)) return false;
-                    return /^Filter$/i.test((el.innerText || el.textContent || '').trim());
+                    if (el.closest(popoverSelector)) return false;
+                    if (el.closest('footer')) return false;
+                    if (el.closest('a[href*="postDetail"]')) return false;
+                    if (insideUpperSection(el)) return false;
+                    const box = el.getBoundingClientRect();
+                    const text = normalizeText(el);
+                    return toolbarTerms.some(term => text.toLowerCase().includes(term.toLowerCase())) &&
+                        text.length <= 180 &&
+                        box.height > 0 &&
+                        box.height <= 90 &&
+                        box.width >= 20;
                 });
-            if (filters.length) {
-                const box = filters[0].getBoundingClientRect();
-                return {x: box.x, y: box.y, top: box.top + window.scrollY};
+            const containers = [];
+            for (const node of termNodes) {
+                let cur = node;
+                let depth = 0;
+                while (cur && cur !== document.body && depth < 6) {
+                    if (validToolbar(cur)) {
+                        containers.push(cur);
+                        break;
+                    }
+                    cur = cur.parentElement;
+                    depth++;
+                }
+            }
+            const unique = Array.from(new Set(containers));
+            if (unique.length) {
+                const el = unique
+                    .sort((a, b) => {
+                        const ab = a.getBoundingClientRect();
+                        const bb = b.getBoundingClientRect();
+                        const ay = ab.top + window.scrollY;
+                        const by = bb.top + window.scrollY;
+                        return ay - by || (ab.height * ab.width) - (bb.height * bb.width);
+                    })[0];
+                const b = el.getBoundingClientRect();
+                return {top: Math.max(0, Math.round(b.top + window.scrollY))};
             }
             return null;
         }
     """)
-    if box:
-        page.evaluate(f"window.scrollTo(0, {box['top'] - 100})")
-        page.wait_for_timeout(1000)
-        return True
-    return False
+    if not box:
+        log("main feed toolbar not found; refusing to scrape upper sections")
+        return False
+
+    page.evaluate("top => window.scrollTo(0, Math.max(0, top))", box["top"])
+    page.wait_for_timeout(1000)
+    return True
 
 
 def feed_fingerprint(page):
-    """Relaxed fingerprint: collect visible cards below toolbar."""
+    """Collect a fingerprint for cards scoped below the real main-feed toolbar."""
     try:
         fingerprint = page.evaluate("""
             () => {
@@ -590,37 +668,112 @@ def feed_fingerprint(page):
                 const normalizeText = (el) => (el?.innerText || el?.textContent || '').trim().replace(/\\s+/g, ' ');
                 
                 const findFeedBoundaryY = () => {
-                    const chips = [...document.querySelectorAll('button, div, span, a')]
+                    const toolbarTerms = [
+                        'Trending',
+                        'Seedance',
+                        'GPT image',
+                        'Featured Topics',
+                        'Short Film',
+                        'Pro Tips',
+                        'Viral Clips',
+                        'Hot',
+                        'Filter',
+                    ];
+                    const popoverSelector = '.el-popover, .el-popper, .hy-filter-popover, [role="tooltip"]';
+                    const isToolbarCandidate = (el) => {
+                        if (!el || !visible(el)) return false;
+                        if (el.closest(popoverSelector)) return false;
+                        if (el.closest('footer')) return false;
+                        if (el.closest('a[href*="postDetail"]')) return false;
+                        const box = el.getBoundingClientRect();
+                        if (box.height < 20 || box.height > 180 || box.width < 80) return false;
+                        const text = normalizeText(el);
+                        const hits = toolbarTerms.filter(term => text.toLowerCase().includes(term.toLowerCase())).length;
+                        return hits >= 2 || (/\\b(Hot|Filter)\\b/i.test(text) && hits >= 1);
+                    };
+
+                    const classCandidates = Array.from(document.querySelectorAll('.my-filter-form-box .filter-form-box, .filter-form-box'))
+                        .filter(isToolbarCandidate)
+                        .sort((a, b) => {
+                            const ab = a.getBoundingClientRect();
+                            const bb = b.getBoundingClientRect();
+                            return (ab.top + window.scrollY) - (bb.top + window.scrollY);
+                        });
+                    if (classCandidates.length) {
+                        const tb = classCandidates[0].getBoundingClientRect();
+                        return Math.round(tb.bottom + window.scrollY + 10);
+                    }
+
+                    const termNodes = Array.from(document.querySelectorAll('button, [role="button"], a, span, div'))
                         .filter((el) => {
                             if (!visible(el)) return false;
+                            if (el.closest(popoverSelector)) return false;
+                            if (el.closest('footer')) return false;
                             if (el.closest('a[href*="postDetail"]')) return false;
                             const text = normalizeText(el);
-                            return /Trending|Featured Topics|Short Film|Pro Tips|Viral Clips|GPT image|Seedance|Filter/i.test(text);
+                            const box = el.getBoundingClientRect();
+                            return toolbarTerms.some(term => text.toLowerCase().includes(term.toLowerCase())) &&
+                                text.length <= 180 &&
+                                box.height > 0 &&
+                                box.height <= 90 &&
+                                box.width >= 20;
                         });
-                    if (chips.length) {
-                        const boxes = chips.map(el => el.getBoundingClientRect());
-                        const maxBottom = Math.max(...boxes.map(b => b.bottom + window.scrollY));
-                        return Math.round(maxBottom);
+                    const containers = [];
+                    for (const node of termNodes) {
+                        let el = node;
+                        let depth = 0;
+                        while (el && el !== document.body && depth < 6) {
+                            if (isToolbarCandidate(el)) {
+                                containers.push(el);
+                                break;
+                            }
+                            el = el.parentElement;
+                            depth++;
+                        }
+                    }
+                    const unique = Array.from(new Set(containers))
+                        .sort((a, b) => {
+                            const ab = a.getBoundingClientRect();
+                            const bb = b.getBoundingClientRect();
+                            const ay = ab.top + window.scrollY;
+                            const by = bb.top + window.scrollY;
+                            return ay - by || (ab.width * ab.height) - (bb.width * bb.height);
+                        });
+                    if (unique.length) {
+                        const tb = unique[0].getBoundingClientRect();
+                        return Math.round(tb.bottom + window.scrollY + 10);
                     }
                     return 0;
                 };
+
+                const insideUpperSection = (link) => {
+                    const upperPattern = /creative\\s+featured|my\\s+community\\s+milestones?|campaign\\s+featured|achievement|milestone/i;
+                    const toolbarPattern = /Trending|Seedance|GPT image|Featured Topics|Short Film|Pro Tips|Viral Clips|\\bHot\\b|\\bFilter\\b/i;
+                    let el = link.parentElement;
+                    let depth = 0;
+                    while (el && el !== document.body && depth < 8) {
+                        const box = el.getBoundingClientRect();
+                        const text = normalizeText(el);
+                        if (box.height < 2200 && upperPattern.test(text) && !toolbarPattern.test(text)) {
+                            return true;
+                        }
+                        el = el.parentElement;
+                        depth++;
+                    }
+                    return false;
+                };
                 
                 const boundaryY = findFeedBoundaryY();
+                if (!boundaryY) return [];
                 const links = [...document.querySelectorAll('a[href*="postDetail"]')].filter(visible);
                 const candidates = links.filter(a => {
                     const box = a.getBoundingClientRect();
                     const top = box.top + window.scrollY;
-                    return box.width >= 50 && box.height >= 50 && top > (boundaryY || 80) + 50;
+                    return box.width >= 50 &&
+                        box.height >= 50 &&
+                        top > boundaryY + 50 &&
+                        !insideUpperSection(a);
                 });
-                if (candidates.length < 3) {
-                    return links.filter(a => {
-                        const box = a.getBoundingClientRect();
-                        return box.width >= 50 && box.height >= 50 && box.top + window.scrollY > 80;
-                    }).slice(0, 5).map(a => ({
-                        href: a.href,
-                        title: (a.querySelector('img')?.alt || '').trim().replace(/\\s+/g, ' ')
-                    }));
-                }
                 return candidates.slice(0, 5).map(a => ({
                     href: a.href,
                     title: (a.querySelector('img')?.alt || '').trim().replace(/\\s+/g, ' ')
@@ -1522,26 +1675,16 @@ def collect_results_from_page(page, count, pool_size):
     scroll_to_main_feed_toolbar(page)
     raw_cards = extract_cards(page, pool_size)
     selector_matches = page.locator(CARD_SELECTOR).count()
-    if (_LAST_EXTRACTION_METRICS or {}).get("toolbar_boundary_y", 0) >= 999999:
-        log("toolbar_boundary_y unavailable after toolbar scroll; rejecting extraction candidates")
-        return raw_cards, [], selector_matches, 0
     results = dedupe_items(raw_cards, pool_size)
     candidates = len(results)
 
     if len(results) < count / 2:
-        for _ in range(2):
-            page.mouse.wheel(0, 900)
-            page.wait_for_timeout(500)
-            scroll_to_main_feed_toolbar(page)
-            raw_cards = extract_cards(page, pool_size)
-            selector_matches = page.locator(CARD_SELECTOR).count()
-            if (_LAST_EXTRACTION_METRICS or {}).get("toolbar_boundary_y", 0) >= 999999:
-                log("toolbar_boundary_y unavailable after toolbar scroll; rejecting extraction candidates")
-                return raw_cards, [], selector_matches, 0
-            results = dedupe_items(raw_cards, pool_size)
-            candidates = len(results)
-            if len(results) >= min(count, pool_size):
-                break
+        page.mouse.wheel(0, 350)
+        page.wait_for_timeout(500)
+        raw_cards = extract_cards(page, pool_size)
+        selector_matches = page.locator(CARD_SELECTOR).count()
+        results = dedupe_items(raw_cards, pool_size)
+        candidates = len(results)
 
     results.sort(key=lambda x: (x.get('likes', 0), x.get('views', 0)), reverse=True)
     return raw_cards, results[:count], selector_matches, candidates
