@@ -117,6 +117,52 @@ By default, the SeaArt scraper runs anonymously. If you want the scraped feed to
 
 The state file is private — never commit it.
 
+## Export Browser Auth State (Optional)
+
+You can export Playwright-compatible auth state for allowlisted sites from a Chrome session that you are already running and logged into. This helper connects only to local Chrome DevTools Protocol by default, never reads Chrome's cookie database, and prints only counts and file paths.
+
+Linux/Mac:
+
+1. Start Chrome with local CDP enabled. Do not bind it to `0.0.0.0`.
+   ```bash
+   google-chrome --remote-debugging-port=9222
+   ```
+   On macOS, use your Chrome app path, for example:
+   ```bash
+   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+   ```
+
+2. Log in manually to the site in that Chrome window. Complete any CAPTCHA or 2FA yourself.
+
+3. Export one site or all allowlisted sites:
+   ```bash
+   python3 scripts/export_browser_state_from_chrome.py --site civitai
+   python3 scripts/export_browser_state_from_chrome.py --all
+   ```
+
+Windows PowerShell:
+
+1. Start Chrome with local CDP enabled:
+   ```powershell
+   & "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+   ```
+
+2. Log in manually to the site in that Chrome window. Complete any CAPTCHA or 2FA yourself.
+
+3. Export one site or all allowlisted sites:
+   ```powershell
+   python scripts\export_browser_state_from_chrome.py --site civitai
+   python scripts\export_browser_state_from_chrome.py --all
+   ```
+
+By default, files are written to `~/.hermes/references/` on Linux/Mac. On Windows, when `HERMES_REFERENCES_DIR` is not set, files are written to `%USERPROFILE%/hermes-auth-export/`. You can override the output directory with `HERMES_REFERENCES_DIR` and the local CDP URL with `CHROME_CDP_URL`:
+
+```bash
+HERMES_REFERENCES_DIR=/home/ubuntu/.hermes/references CHROME_CDP_URL=http://127.0.0.1:9222 python3 scripts/export_browser_state_from_chrome.py --site huggingface
+```
+
+State files are private. Do not commit them or share them.
+
 ## Probe / Dev-only Scripts
 
 These scripts are not part of the production pipeline:

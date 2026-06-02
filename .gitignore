@@ -13,6 +13,11 @@ accounts/
 references/accounts.md
 accounts.md
 seaart_state.json
+*_state.json
+civitai_state.json
+huggingface_state.json
+danbooru_state.json
+reddit_state.json
 *.auth.json
 *.auth_state.json
 *storage_state*.json
