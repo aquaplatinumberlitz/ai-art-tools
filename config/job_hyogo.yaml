@@ -1,0 +1,201 @@
+# ── Job Hyogo Pipeline Configuration ──
+# Target areas for job searching in Hyogo prefecture and surrounding Kansai region
+
+areas:
+  tier_a:
+    label: "Tier A - Priority areas"
+    cities:
+      - Himeji
+      - Taishi
+      - Kakogawa
+      - Takasago
+      - Akashi
+      - Kobe
+  tier_b:
+    label: "Tier B - Other Hyogo cities"
+    cities:
+      - Amagasaki
+      - Nishinomiya
+      - Itami
+      - Ashiya
+      - Sanda
+      - Miki
+      - Ono
+      - Kasai
+      - Aioi
+      - Tatsuno
+      - Shiso
+      - Yabu
+      - Tamba
+      - Awaji
+      - Sumoto
+      - Minamiawaji
+      - Kato
+  tier_c:
+    label: "Tier C - Kansai region beyond Hyogo"
+    cities:
+      - Osaka
+      - Kyoto
+      - Nara
+      - Shiga
+      - Otsu
+      - Wakayama
+      - Sakai
+      - Higashiosaka
+      - Hirakata
+
+# Keyword filters
+keywords:
+  include:
+    - engineer
+    - factory
+    - 工場
+    - 製造
+    - エンジニア
+    - 機械
+    - 生産
+    - ライン
+    - 作業
+    - オペレーター
+    - 技術
+    - 組立
+    - 倉庫
+    - 物流
+    - フォークリフト
+    - 工場勤務
+    - 製造スタッフ
+    - 生産技術
+    - 設備
+    - メンテナンス
+  exclude:
+    - "特定技能"
+    - "技能実習"
+    - "アルバイト"
+    - "バイト"
+    - "パート"
+    - "建設"
+    - "土木"
+    - "施工管理"
+    - "IT"
+    - "SE"
+    - "プログラマー"
+    - "Webエンジニア"
+    - "開発"
+    - "飲食"
+    - "接客"
+    - "販売"
+    - "清掃"
+    - "介護"
+    - "配送"
+    - "ドライバー"
+
+# Source URLs for crawling
+sources:
+  jobhouse:
+    url: "https://jobhouse.jp/factory/articles/p_28/f_32"
+    enabled: true
+    label: "JobHouse"
+    type: "JobHouse"
+  job_harima:
+    url: "https://www.job-harima.jp/recruitment"
+    enabled: true
+    label: "JOB Harima"
+    type: "JOB Harima"
+  hello_work:
+    url: "https://hello-work.info/外国人関連の求人-兵庫県/"
+    enabled: true
+    label: "HelloWork"
+    type: "HelloWork"
+  koujou_works:
+    url: "https://04510.jp/jobs/areas/kansai/hyogo/B28210/"
+    enabled: true
+    label: "工場ワークス"
+    type: "工場ワークス"
+  kyujin_box:
+    url: "https://xn--pckua2a7gp8552d.com/"
+    enabled: true
+    label: "求人ボックス"
+    type: "求人ボックス"
+
+# Large company career pages
+large_companies:
+  mitsubishi_electric:
+    url: "https://www.mitsubishielectric.co.jp/recruitment/"
+    name: "Mitsubishi Electric"
+    enabled: true
+  sumitomo_rubber:
+    url: "https://www.srigroup.co.jp/recruit/"
+    name: "Sumitomo Rubber"
+    enabled: true
+  kobe_steel:
+    url: "https://www.kobelco.co.jp/recruit/"
+    name: "Kobe Steel"
+    enabled: true
+  kawasaki_heavy:
+    url: "https://www.khi.co.jp/recruit/"
+    name: "Kawasaki Heavy"
+    enabled: true
+  mitsubishi_heavy:
+    url: "https://www.mhi.com/jp/careers/"
+    name: "Mitsubishi Heavy"
+    enabled: true
+  hitachi:
+    url: "https://www.hitachi.co.jp/recruit/"
+    name: "Hitachi"
+    enabled: true
+
+# Facebook search settings
+facebook:
+  enabled: true
+  use_browser: true  # Use Playwright browser-based crawl (requires credentials)
+  max_posts: 50
+  max_posts_per_group: 50
+  max_scrolls: 20
+  min_scroll_delay: 2
+  max_scroll_delay: 6
+  credentials_file: "~/.hermes/references/facebook_job_crawl_cred.json"
+  groups:
+    - name: "Chuyển việc kỹ sư"
+      url: "https://www.facebook.com/groups/chuyenviecksu/"
+      keywords: ["Hyogo", "Himeji", "Kobe", "Kakogawa", "Akashi", "Takasago", "兵庫", "姫路", "加古川", "正社員", "転職"]
+    - name: "Kỹ sư chuyển việc tại Nhật Bản"
+      url: "https://www.facebook.com/groups/kySuchuyenviecviecTaiNhat/"
+      keywords: ["Hyogo", "Himeji", "Kobe", "Kakogawa", "兵庫", "姫路", "神戸", "kỹ sư", "xưởng", "nhà máy"]
+    - name: "CHUYỂN VIỆC KỸ SƯ CHUYỂN SHYU TẠI NHẬT"
+      url: "https://www.facebook.com/groups/chuyenShyu/"
+      keywords: ["Hyogo", "Himeji", "Kobe", "Kakogawa", "Takasago", "Akashi", "shyu", "kỹ sư", "xưởng", "転職"]
+    - name: "Kỹ Sư Nhật Bản"
+      url: "https://www.facebook.com/groups/kysunhatban/"
+      keywords: ["Hyogo", "Himeji", "Kobe", "Kakogawa", "Akashi", "兵庫", "姫路", "神戸", "kỹ sư"]
+  search_keywords:
+    - "Hyogo 転職"
+    - "Himeji 転職"
+    - "Kobe 転職"
+    - "Kakogawa 転職"
+    - "Hyogo 求人 工場"
+    - "Himeji 求人 製造"
+    - "Kobe 製造 正社員"
+    - "Himeji 技人国"
+    - "Hyogo 工場 正社員 外国人"
+
+# Telegram settings
+telegram:
+  enabled: true
+  output_file: "reports/telegram_summary.md"
+
+# Report settings
+report:
+  output_dir: "reports"
+  filename_prefix: "job_hyogo_report"
+  max_reports_to_keep: 10
+  renderer_script: "scripts/render_job_hyogo_report.py"
+
+# Pipeline settings
+pipeline:
+  max_jobs_per_category: 50
+  dedup_exact_match: true
+  dedup_fuzzy_threshold: 0.85
+  rank_tiers: true
+  export_formats:
+    - json
+    - html

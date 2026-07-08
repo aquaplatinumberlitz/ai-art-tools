@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Báo cáo job Hyogo - 2026-06-03 04:56</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f6f4ef; color: #1f2933; margin: 0; padding: 16px; line-height: 1.5; }
+.container { max-width: 960px; margin: 0 auto; }
+h1 { color: #c46a2b; font-size: 1.4em; border-bottom: 2px solid #c46a2b; padding-bottom: 8px; margin: 0 0 16px; }
+h2 { color: #1f2933; font-size: 1.1em; margin: 24px 0 10px; border-left: 3px solid #c46a2b; padding-left: 10px; }
+h3 { font-size: 0.95em; margin: 16px 0 6px; color: #334155; }
+.toc { background: #fff; border: 1px solid #e5e0d8; border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+.toc a { color: #c46a2b; text-decoration: none; font-size: 0.88em; display: block; padding: 3px 0; }
+.toc a:hover { text-decoration: underline; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+.summary-card { background: #fff; border: 1px solid #e5e0d8; border-radius: 10px; padding: 14px 10px; text-align: center; }
+.summary-card .num { font-size: 1.6em; font-weight: 700; color: #c46a2b; display: block; }
+.summary-card .label { font-size: 0.78em; color: #64748b; display: block; margin-top: 2px; }
+.job-card { background: #fff; border: 1px solid #e5e0d8; border-radius: 10px; padding: 14px; margin: 10px 0; }
+.job-card .title { font-weight: 600; font-size: 1em; margin: 0 0 4px; }
+.job-card .meta { font-size: 0.82em; color: #475569; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0; }
+.job-card .meta strong { color: #1f2933; }
+.job-card .why { font-size: 0.82em; color: #334155; margin: 6px 0 2px; padding: 6px 10px; background: #fefce8; border-radius: 6px; border-left: 3px solid #c46a2b; }
+.job-card .risks { font-size: 0.78em; color: #991b1b; margin: 4px 0; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 0.72em; font-weight: 600; margin: 2px 3px 2px 0; white-space: nowrap; }
+.badge-ky-su { background: #e8f0fe; color: #1a56db; }
+.badge-xuong { background: #fef3c7; color: #b45309; }
+.badge-facebook { background: #e7f5ff; color: #1877f2; }
+.badge-cty-lon { background: #ede9fe; color: #6d28d9; }
+.badge-seishain { background: #dcfce7; color: #166534; }
+.badge-keiyaku { background: #f0f9ff; color: #0369a1; }
+.badge-haken { background: #fef2f2; color: #b91c1c; }
+.badge-agency { background: #f5f5f4; color: #44403c; }
+.badge-cao { background: #dcfce7; color: #166534; }
+.badge-trung-binh { background: #fef3c7; color: #92400e; }
+.badge-thap { background: #fef2f2; color: #991b1b; }
+.badge-generic { background: #f1f5f9; color: #475569; }
+.link-btn { display: inline-block; padding: 5px 12px; background: #c46a2b; color: #fff; border-radius: 6px; text-decoration: none; font-size: 0.8em; margin-top: 6px; }
+.link-btn:hover { background: #a85722; }
+.missing-info { font-size: 0.78em; color: #b91c1c; font-style: italic; margin-top: 4px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.82em; background: #fff; border-radius: 8px; }
+th { background: #f1f5f9; text-align: left; padding: 8px 10px; border-bottom: 2px solid #e5e0d8; font-weight: 600; }
+td { padding: 8px 10px; border-bottom: 1px solid #e5e0d8; }
+.fb-item { background: #fff; border: 1px solid #e5e0d8; border-radius: 8px; padding: 10px 12px; margin: 6px 0; font-size: 0.85em; }
+.fb-item .fb-meta { color: #64748b; font-size: 0.82em; }
+.empty-msg { color: #94a3b8; font-style: italic; font-size: 0.88em; padding: 10px 0; }
+.footer-note { font-size: 0.75em; color: #94a3b8; text-align: center; margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e0d8; }
+@media (max-width:600px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } .job-card { padding: 10px; } body { padding: 10px; } }
+</style>
+</head>
+<body><div class="container">
+<h1>📋 Báo cáo job Hyogo — 2026-06-03 04:56</h1>
+<div class="toc"><strong>📑 Mục lục</strong>
+<a href="#summary">📌 Tổng quan</a>
+<a href="#top">📌 Top jobs</a>
+<a href="#priority">📌 Job ưu tiên cao</a>
+<a href="#engineer">📌 Job kỹ sư chuyển việc</a>
+<a href="#factory">📌 Job lao động phổ thông</a>
+<a href="#large">📌 Công ty lớn / Nhà máy lớn</a>
+<a href="#facebook">📌 Facebook crawl findings</a>
+<a href="#rejected">📌 Tin bị loại</a>
+</div>
+<h2 id="summary">📊 Tổng quan</h2>
+<div class="summary-grid">
+<div class="summary-card"><span class="num">73</span><span class="label">Tổng job phù hợp</span></div>
+<div class="summary-card"><span class="num">1</span><span class="label">Kỹ sư chuyển việc</span></div>
+<div class="summary-card"><span class="num">40</span><span class="label">LĐ phổ thông/xưởng/kho</span></div>
+<div class="summary-card"><span class="num">0</span><span class="label">Facebook giữ lại</span></div>
+<div class="summary-card"><span class="num">2</span><span class="label">Công ty lớn</span></div>
+<div class="summary-card"><span class="num">12</span><span class="label">Tin bị loại</span></div>
+</div>
+<div style="font-size:0.8em;color:#64748b;margin:8px 0;">
+Nguồn: Career Pages: 3 · Facebook: 0 · HelloWork: 20 · JOB Harima: 1 · JobHouse: 30 · 工場ワークス: 31 · 求人ボックス: 0
+</div>
+<h2 id="top">🏆 Top 5 job nổi bật</h2>
+<div class="job-card" style="padding:10px 12px;"><strong>営業【兵庫県全域及び近隣地区へのルート営業が主となります】</strong> · JOB Harima · 兵庫県全域及び近隣地区へのルート営業が主となります】 ·  · 正社員 <span class="badge badge-cao">Cao</span></div>
+<div class="job-card" style="padding:10px 12px;"><strong>洲本市</strong> · 日本語教育事業のサポート（通訳翻訳・生活習慣等）新着クイックリサーチ協同組合 · 兵庫県洲本市安乎町平安浦１８８１ー２ ·  · 正社員 <span class="badge badge-cao">Cao</span> <a href="https://hello-work.info/job/1303009183061/" target="_blank" rel="noopener" style="color:#c46a2b;font-size:0.82em;">🔗</a></div>
+<div class="job-card" style="padding:10px 12px;"><strong>外国人（中国）就労者のサポート業務・通訳業務ビジネス・コープ協同組合</strong> ·  · 兵庫県姫路市三左衛門堀西の町６５番地 ·  · 正社員 <span class="badge badge-cao">Cao</span> <a href="https://hello-work.info/job/2805009666461/" target="_blank" rel="noopener" style="color:#c46a2b;font-size:0.82em;">🔗</a></div>
+<div class="job-card" style="padding:10px 12px;"><strong>外国人（ベトナム）就労者のサポート業務・通訳業務ビジネス・コープ協同組合</strong> ·  · 兵庫県姫路市三左衛門堀西の町６５番地 ·  · 正社員 <span class="badge badge-cao">Cao</span> <a href="https://hello-work.info/job/2805010507461/" target="_blank" rel="noopener" style="color:#c46a2b;font-size:0.82em;">🔗</a></div>
+<div class="job-card" style="padding:10px 12px;"><strong>メンテナンス（急募）日本人、外国籍（定住者、永住者）可能株式会社リック</strong> ·  · 兵庫県加古川市野口町坂元６８－１ ·  · 正社員 <span class="badge badge-cao">Cao</span> <a href="https://hello-work.info/job/2806003136561/" target="_blank" rel="noopener" style="color:#c46a2b;font-size:0.82em;">🔗</a></div>
+<h2 id="priority">⭐ Job ưu tiên cao</h2>
+<div class="job-card">
+<div class="title">営業【兵庫県全域及び近隣地区へのルート営業が主となります】</div>
+<div><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Công ty:</strong> JOB Harima · <strong>Nguồn:</strong> JOB Harima · <strong>Khu vực:</strong> 兵庫県全域及び近隣地区へのルート営業が主となります】 · <strong>Loại:</strong> Other · <strong>Hình thức:</strong> 正社員</div>
+<div class="missing-info">⚠️ Thiếu link gốc</div>
+</div>
+<div class="job-card">
+<div class="title">洲本市</div>
+<div><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Công ty:</strong> 日本語教育事業のサポート（通訳翻訳・生活習慣等）新着クイックリサーチ協同組合 · <strong>Nguồn:</strong> HelloWork · <strong>Khu vực:</strong> 兵庫県洲本市安乎町平安浦１８８１ー２ · <strong>Loại:</strong> Other · <strong>Hình thức:</strong> 正社員</div>
+<a class="link-btn" href="https://hello-work.info/job/1303009183061/" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">外国人（中国）就労者のサポート業務・通訳業務ビジネス・コープ協同組合</div>
+<div><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> HelloWork · <strong>Khu vực:</strong> 兵庫県姫路市三左衛門堀西の町６５番地 · <strong>Loại:</strong> Other · <strong>Hình thức:</strong> 正社員</div>
+<a class="link-btn" href="https://hello-work.info/job/2805009666461/" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">外国人（ベトナム）就労者のサポート業務・通訳業務ビジネス・コープ協同組合</div>
+<div><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> HelloWork · <strong>Khu vực:</strong> 兵庫県姫路市三左衛門堀西の町６５番地 · <strong>Loại:</strong> Other · <strong>Hình thức:</strong> 正社員</div>
+<a class="link-btn" href="https://hello-work.info/job/2805010507461/" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">メンテナンス（急募）日本人、外国籍（定住者、永住者）可能株式会社リック</div>
+<div><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> HelloWork · <strong>Khu vực:</strong> 兵庫県加古川市野口町坂元６８－１ · <strong>Loại:</strong> Other · <strong>Hình thức:</strong> 正社員</div>
+<a class="link-btn" href="https://hello-work.info/job/2806003136561/" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">正社員◆一般事務兼企業様巡回新着社名非公開</div>
+<div><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> HelloWork · <strong>Khu vực:</strong> 兵庫県南あわじ市 · <strong>Loại:</strong> Other · <strong>Hình thức:</strong> 正社員</div>
+<a class="link-btn" href="https://hello-work.info/job/2811002370161/" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">【20代～50代活躍中】【加古川市】資格が活かせるフォークリフト作業／土日祝休み／20代～50代活躍中！／制服貸与あり</div>
+<div><span class="badge badge-xuong">Xưởng/kho</span><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> 工場ワークス · <strong>Khu vực:</strong> 兵庫県 · <strong>Loại:</strong> Factory/Warehouse · <strong>Hình thức:</strong> 正社員 · <strong>Lương:</strong> 時給1,350円</div>
+<a class="link-btn" href="https://04510.jp/jobs/28438430/?companyId=1040140026" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">20～40代活躍中／工場でのお仕事が初めての方にオススメ！／月収例24.6万円【住宅用建材の制振部品の製造機械オペレーター】（No.HJ-11189-14-JP）</div>
+<div><span class="badge badge-xuong">Xưởng/kho</span><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> 工場ワークス · <strong>Khu vực:</strong> 兵庫県 · <strong>Loại:</strong> Factory/Warehouse · <strong>Hình thức:</strong> 正社員 · <strong>Lương:</strong> 月給205,000円</div>
+<a class="link-btn" href="https://04510.jp/jobs/28454623/?companyId=1072070001" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">＜明石市＞【高時給1,700円！】正社員前提20代～30代活躍中！未経験OK、航空エンジン部品の加工・組立・検査作業　兵庫県在住の方が活躍中！</div>
+<div><span class="badge badge-xuong">Xưởng/kho</span><span class="badge badge-seishain">正社員</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Nguồn:</strong> 工場ワークス · <strong>Khu vực:</strong> 兵庫県在住の方が活躍中！ · <strong>Loại:</strong> Factory/Warehouse · <strong>Hình thức:</strong> 正社員 · <strong>Lương:</strong> 時給1,700～2,125円</div>
+<a class="link-btn" href="https://04510.jp/jobs/27699735/?companyId=1130990001" target="_blank" rel="noopener">🔗 Mở link gốc</a>
+</div>
+<div class="job-card">
+<div class="title">Peopleキャリア入社社員の声</div>
+<div><span class="badge badge-cty-lon">Cty lớn</span><span class="badge badge-cty-lon">Cty lớn</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Công ty:</strong> Kawasaki Heavy · <strong>Nguồn:</strong> Kawasaki Heavy · <strong>Loại:</strong> LargeCompany</div>
+<div class="missing-info">⚠️ Thiếu link gốc</div>
+</div>
+<h2 id="engineer">🔧 Job kỹ sư chuyển việc</h2>
+<div class="table-wrap"><table><tr><th>Job</th><th>Công ty</th><th>KV</th><th>Hình thức</th><th>Link</th></tr>
+<tr><td>＜大手企業で直接雇用＞20〜30代の男性活躍中！日勤専属／入社祝い金◇最大30万円／未経験OK／月収例33万円以上／独身寮あり【機械保全・電気保全業務】兵庫県尼崎市</td><td>株式会社大阪チタニウムテクノロジーズ</td><td></td><td>契約社員</td><td><a href="https://jobhouse.jp/factory/articles/767619" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+</table></div>
+<h2 id="factory">🏭 Job lao động phổ thông / xưởng / kho</h2>
+<div class="table-wrap"><table><tr><th>Job</th><th>Công ty</th><th>KV</th><th>Hình thức</th><th>Link</th></tr>
+<tr><td>【20代～50代活躍中】【加古川市】資格が活かせるフォークリフト作業／土日祝休み／20代～50代活躍中！／制服貸与あり</td><td></td><td>兵庫県</td><td>正社員</td><td><a href="https://04510.jp/jobs/28438430/?companyId=1040140026" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>20～40代活躍中／工場でのお仕事が初めての方にオススメ！／月収例24.6万円【住宅用建材の制振部品の製造機械オペレーター】（No.HJ-11189-14-JP）</td><td></td><td>兵庫県</td><td>正社員</td><td><a href="https://04510.jp/jobs/28454623/?companyId=1072070001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>＜明石市＞【高時給1,700円！】正社員前提20代～30代活躍中！未経験OK、航空エンジン部品の加工・組立・検査作業　兵庫県在住の方が活躍中！</td><td></td><td>兵庫県在住の方が活躍中！</td><td>正社員</td><td><a href="https://04510.jp/jobs/27699735/?companyId=1130990001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【土日祝休み】月収例31万円以上可！制御装置の組立／直接雇用のチャンスあり◎／駅チカ徒歩8分／社宅完備＜兵庫県三田市＞《JBBN1C》</td><td>UTエージェント株式会社 関西第二CU</td><td>兵庫県三田市</td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/691408" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【日勤&amp;土日休み♪】家電部品の機械操作・目視検査など！重量物基本なし＆モクモク作業◎明るい髪色OK♪20代～40代男女活躍中！＜神戸市西区＞JVCE1C《JVCE1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1097160" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【精密部品の組付け・入出庫作業】未経験活躍中！／日勤＆土日祝休み♪／年休122日／残業ほぼなし！／複数名大募集《JYDP1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1201459" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>月収31万円可+入社後6ヶ月限定で4万円の特別手当あり！ミニボーナス10万円★土日祝休＆年休126日♪50代活躍中☆かんたん作業◎駅近通勤！小型部品の組立《JBBN1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/997132" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【汎用ロボットの組立・検査】月収29万円可／日勤＆土日祝休み／未経験OK《JDPE1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1186897" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~30代活躍中】★継続支援金10万円★【月収30万円可】未経験OKのエンジン部品製造オペレーター・検査◎土日祝休み＆働きやすい職場♪社宅費全額補助！《JFOL2C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1097238" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】日勤＆土日休み♪家電部品の簡単な機械操作・目視検査！モクモク作業◎髪型自由♪《JVCE1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1076216" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】★6月入社限定！入社祝金10万円★軽作業×月収28万円可☆部品の塗装・検査・組立◇社宅費補助あり&amp;充実の食堂♪未経験OK！《Jbnd1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1188325" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【未経験歓迎】機器の組付け作業☆日勤＆土日祝休み♪年休122日☆残業ほぼなし！複数名大募集◎《JYDP1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1112420" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【もくもく作業】プラスチック部品の目視検査★無料送迎あり！社宅費全額補助あり♪日勤×土日休み♪《JACL1-PC》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1069036" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【月収29万円可×年休171日】自動車部品のフォークリフト運搬・在庫管理♪社宅費補助あり！《JMWS1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1076219" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>日勤×土日祝休み☆定着支援金10万円◎力仕事ほぼナシ♪駅徒歩8分！小型部品の組立・検査◇入社後6ヶ月限定！特別手当込みで月収例28万円可◎《JBBE1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/999982" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】夜勤専属★月収30万円可！経験活かせる♪食品倉庫内でフォークリフト運搬作業など☆残業少なめ《JVCV1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>正社員</td><td><a href="https://jobhouse.jp/factory/articles/1076226" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>即入寮OK／20～40代活躍中／細かいモクモク作業がお好きな方にオススメ♪／月収例27.3万円【飲料缶の目視検査】（No.HJ-11446-03-JP）</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28434481/?companyId=1072070001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20代～50代活躍中】［加古川市］《高時給1,700円》空港や物流で使う部品の成形・検査・梱包作業／未経験歓迎／交替勤務で稼げる</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28353739/?companyId=1040140026" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>★＜加古川市＞活性炭の製造・運搬/日払いOK【経験不問！未経験◎】憧れの高収入Work！！モノ足りない方に・残業20H未満♪</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28458033/?companyId=1041840007" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>★＜加古川市＞フォークリフト/日払いOK【寮完備！】初心者カンゲイ♪高収入ワーク！程よい残業でお小遣い稼ぎ♪</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28458032/?companyId=1041840007" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20代～60代活躍中】［加古川市］倉庫内でリーチリフトを使って入出荷作業／高時給1,400円／コンビニ製品の取り扱い／屋内作業で快適作業</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28438409/?companyId=1040140026" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>＜加古川市＞【月収28万円可】未経験歓迎◎大手メーカーで製鉄設備の保守・点検！日勤&amp;送迎あり◎直接雇用のチャンス★【履歴書不要☆オンライン面接OK】【入社キャンペーン実施中！】</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28378934/?companyId=1083420017" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20代～50代活躍中】［加古川市］＜資格が活かせる！高時給1500円＞フォークリフト作業／交替勤務／20代～50代活躍中／制服貸与あり</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28302802/?companyId=1040140026" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>工場で原料の入出荷・リフト作業／時給1500円／寮完備［月収例］23.6万円以上可</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28400371/?companyId=1042980001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>＜加古川市＞月収27万円可★航空機エンジン部品の製造／機械オペレーター◆未経験可！直接雇用の可能性あり【履歴書不要☆オンライン面接OK】【入社キャンペーン実施中！】</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28426013/?companyId=1083420017" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20代～40代活躍中】［加古川市］石炭の製造オペレーター／未経験OK／ドリンク無料提供あり／3交替×高時給1600円でシッカリ稼げる◎</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28305498/?companyId=1040140026" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>工場で機械部品の溶接サポート／時給1450円／未経験可［月収例］27.9万円以上可</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28400362/?companyId=1042980001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>＜加古川市＞【未経験歓迎】金属ロープの機械加工☆駅チカ徒歩10分♪長期休暇あり◎マイカー通勤OK♪【履歴書不要☆オンライン面接OK】【入社キャンペーン実施中！】</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28448165/?companyId=1083420017" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>工場で機械部品の溶接／時給1300円／寮完備／未経験可［月収例］25万円以上可</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28400363/?companyId=1042980001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>即入寮OK／20～40代活躍中／これまでの経験を活かして働きたい方へ◎／月収例32.9万円【飲料缶の大きさ・太さ・材質に合わせて製造ラインの調整】（No.HJ-11446-04-JP）</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28434479/?companyId=1072070001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20代～40代活躍中】［加古川市］ネジの入出庫とリフト作業／高時給1,350円／カウンター・リーチ両方使用／手作業ありでメリハリ抜群</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28438384/?companyId=1040140026" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>＜加古川市＞【日勤×土日祝休み】金属製品の検査、測定業務！【空調完備】【履歴書不要☆オンライン面接OK】【入社キャンペーン実施中！】</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28268902/?companyId=1083420017" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>＜加古川市＞【月収31万円可】活性炭の製造業務！マイカー通勤OK♪未経験歓迎☆売店完備！送迎バスあり◎【履歴書不要☆オンライン面接OK】【入社キャンペーン実施中！】</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28391986/?companyId=1083420017" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>食品製造業</td><td>シニア・学生・外国人の方の応募歓迎新着エム・ヴイ・エム商事株式会社</td><td>兵庫県神戸市中央区港島南町４丁目６－７</td><td>Unknown</td><td><a href="https://hello-work.info/job/2801014445161/" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>◆未経験OK！石灰炉の操業・監視作業スタッフ募集</td><td></td><td>兵庫県</td><td>派遣</td><td><a href="https://04510.jp/jobs/28420603/?companyId=1022880001" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>軽作業スタッフ</td><td>勤務時間・日数相談可</td><td>兵庫県神戸市長田区菅原通２丁目２３</td><td>Unknown</td><td><a href="https://hello-work.info/job/2801012282961/" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>◇駅徒歩5分◆時給1,450円月収25万円以上◇組立業務◆もの作りの好きな方募集!!</td><td>株式会社Gファクトリー 大阪営業所</td><td></td><td>Unknown</td><td><a href="https://jobhouse.jp/factory/articles/1209337" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【月収30万円可】大手電機メーカー☆手のひらサイズのプラスチック部品製造♪未経験OK！社宅費全額補助◎《JACM1-PC》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>Unknown</td><td><a href="https://jobhouse.jp/factory/articles/1069038" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代女性活躍中】◆未経験OK！チーズの製造・梱包スタッフ募集&lt;&lt;再入社手当最大15万円支給！&gt;&gt;</td><td>高木工業株式会社</td><td></td><td>Unknown</td><td><a href="https://jobhouse.jp/factory/articles/1083521" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+<tr><td>【20~40代活躍中】【日勤＆土日祝休み♪】マーガリンの製造業務！年休120日♪空調完備！未経験OK◎基本残業なし！《JXTU1C》</td><td>UTエージェント株式会社 関西第二CU</td><td></td><td>Unknown</td><td><a href="https://jobhouse.jp/factory/articles/1108411" target="_blank" rel="noopener" style="color:#c46a2b;">🔗</a></td></tr>
+</table></div>
+<h2 id="large">🏢 Công ty lớn / Nhà máy lớn</h2>
+<div class="job-card">
+<div class="title">Peopleキャリア入社社員の声</div>
+<div><span class="badge badge-cty-lon">Cty lớn</span><span class="badge badge-cty-lon">Cty lớn</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Công ty:</strong> Kawasaki Heavy · <strong>Nguồn:</strong> Kawasaki Heavy · <strong>Loại:</strong> LargeCompany</div>
+<div class="missing-info">⚠️ Thiếu link gốc</div>
+</div>
+<div class="job-card">
+<div class="title">04Peopleキャリア入社社員の声</div>
+<div><span class="badge badge-cty-lon">Cty lớn</span><span class="badge badge-cty-lon">Cty lớn</span><span class="badge badge-cao">Cao</span></div>
+<div class="meta"><strong>Công ty:</strong> Kawasaki Heavy · <strong>Nguồn:</strong> Kawasaki Heavy · <strong>Loại:</strong> LargeCompany</div>
+<div class="missing-info">⚠️ Thiếu link gốc</div>
+</div>
+<h2 id="facebook">📘 Facebook crawl findings</h2>
+<div class="empty-msg">Không có bài Facebook phù hợp kỳ này.</div>
+<h2 id="rejected">🚫 Tin bị loại</h2>
+<div class="table-wrap"><table><tr><th>Lý do</th><th>Số lượng</th></tr>
+<tr><td>Tokutei / 特定技能</td><td>3</td></tr>
+<tr><td>IT / lập trình</td><td>1</td></tr>
+<tr><td>Xây dựng / 建設</td><td>4</td></tr>
+<tr><td>Khác</td><td>4</td></tr>
+</table></div>
+<div class="footer-note">Báo cáo tự động · Job Hyogo · 2026-06-03 04:56</div>
+</div></body></html>
